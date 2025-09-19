@@ -1,0 +1,15 @@
+services:
+    chatbot-backend:
+        build: ./chatbot-backend
+        ports:
+            - "5000:5000"
+
+    db-backend:
+        build: ./db-backend
+        ports:
+            - "5432:5432"
+
+    frontend:
+        build: ./frontend
+        ports:
+            - "3000:3000"
