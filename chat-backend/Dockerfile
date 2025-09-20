@@ -1,5 +1,8 @@
-#Dummy dockerfile
-FROM alpine:latest
+FROM python:3.14-rc-alpine as FAISS-builder
 
-# Do nothing
-CMD ["tail", "-f", "/dev/null"]
+WORKDIR /
+
+COPY /faiss/requirements.txt .
+
+RUN pip install -r requirements.txt
+
