@@ -1,0 +1,6 @@
+services:
+    cloudflared:
+        # Runs Cloudflare tunnel to expose the app (Vincent only)
+        image: cloudflare/cloudflared:latest
+        restart: unless-stopped
+        command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
