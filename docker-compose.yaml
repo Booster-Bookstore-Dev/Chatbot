@@ -14,7 +14,7 @@ services:
         volumes:
             - ollama-storage:/root/.ollama
 
-    chatbot-backend:
+    chat-backend:
         # Main backend service
         build: ./chatbot-backend
         ports:
