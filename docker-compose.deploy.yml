@@ -1,10 +1,23 @@
 services:
+    cloudflared:
+        # Runs Cloudflare tunnel to expose the app (Vincent only)
+        image: cloudflare/cloudflared:latest
+        restart: unless-stopped
+        command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+
     ollama:
         # Ollama AI model, accessed via API only
         image: ollama/ollama
         restart: unless-stopped
         ports:
             - "11434:11434"
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: ${GPU_DRIVER}
+                          capabilities: ["gpu"]
+                          count: all
         entrypoint:
             [
                 "/bin/bash",
