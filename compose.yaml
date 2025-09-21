@@ -16,7 +16,7 @@ services:
 
     chat-backend:
         # Main backend service
-        build: ./chatbot-backend
+        build: ./chat-backend
         ports:
             - "5000:5000"
 

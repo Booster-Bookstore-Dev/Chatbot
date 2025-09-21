@@ -1,5 +1,7 @@
 import os
 import sys
+import json
+import requests
 from dotenv import load_dotenv
 import faiss
 import numpy as np
@@ -13,6 +15,10 @@ INDEX_PATH = os.getenv('INDEX_PATH', '/data')
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
 DATA_PATH = os.getenv('DATA_PATH', '/start_data')
+
+#MAKE THESE IN .env
+LLM_ENDPOINT = 'http://ollama:11434/api/chat'
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL',"qwen3:1.7b")
 
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -91,6 +97,25 @@ def faiss_search(query:str, k=5):
         if len(results) >= 2 and len(results) >=k:
             break
     return results
+
+
+#LLM functions
+def call_llm(messages, tools, stream):
+    try:
+        llm_res = requests.post(LLM_ENDPOINT,headers= { "Content-Type": "application/json" },
+			json= {
+				"model": OLLAMA_MODEL,
+                "messages": messages,
+                "tools": tools,
+                "stream": stream,
+            }
+        )
+        data = llm_res.json()
+        return data
+    except:
+        return {"error": "no data"}
+
+
 #Routes
 
 @app.route("/rebuild_index", methods=["POST"])
@@ -102,13 +127,89 @@ def rebuild_index_api():
 @app.route("/search", methods=["POST"])
 def search_api():
     data = request.json or {}
-    query = data.get("query")
+    query = data.get("query", "")
     k = data.get("k", 5)
     if not query:
         return jsonify({"error": "No query provided"}), 400
     response = faiss_search(query, k)
     return jsonify(response)
 
+@app.route("/chat", methods=["POST"])
+def llm_chat():
+    req_data = request.json or {}
+    user_message = req_data["message"]
+    history = req_data["history"]
+    if not user_message:
+        return jsonify({"error": "No message provided"})
+    if not history:
+        messages = [
+            {
+                "role": "system",
+                "content": """/no_think 
+                    You are a bookstore assistant. 
+                    - Use the `book_search` tool only when the user explicitly requests books, or when you must fetch book data. 
+                    - Use the `reply` tool to send your response to the user.
+                    - Return exactly the number of books the user asks for, no more. 
+                    - Keep replies concise and direct. 
+                    - When asked for similar books, exclude any with the same title as the reference. 
+                    - Do not explain your reasoning or mention tools in responses."""
+            },
+            {
+                'role': 'user',
+                'content': user_message
+            }
+        ]
+    else:
+        messages = history + [{'role': 'user', 'content': user_message }]
+    
+    tools=[
+        {
+            "type": "function",
+            "function" : {
+                "name" : "book_search",
+                "description" :
+                    "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
+                "parmeters" : {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search terms that should be used to find a book for the user."
+                        },
+                        "numberOfBooks": {
+                            "type": "integer",
+                            "description": "The number of books that you want returned"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+        "type": "function",
+            "function": {
+                "name": "reply",
+                "description": "Sends the imput to the user as a reply to their question. Use if you do not need any other tools.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reply": {
+                            "type": "string",
+                            "description": "Reply to send to the user."
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        }
+    ]
+    
+    return jsonify(call_llm(messages, tools, False))
+    # updated_messages = call_llm(messages, tools, False)
+    
+    
+    
+    
 if __name__ == "__main__":
     # Load existing index if it exists
     if os.path.exists(INDEX_PATH + '/' + INDEX_NAME) and os.path.exists(INDEX_PATH + "/" + DATAFRAME_NAME):
