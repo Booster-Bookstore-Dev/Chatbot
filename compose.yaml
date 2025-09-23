@@ -1,0 +1,36 @@
+services:
+    ollama:
+        # Ollama AI model, accessed via API only
+        image: ollama/ollama
+        restart: unless-stopped
+        ports:
+            - "11434:11434"
+        entrypoint:
+            [
+                "/bin/bash",
+                "-c",
+                "ollama serve & sleep 5 && ollama pull ${OLLAMA_MODEL} && wait",
+            ]
+        volumes:
+            - ollama-storage:/root/.ollama
+
+    chat-backend:
+        # Main backend service
+        build: ./chatbot-backend
+        ports:
+            - "5000:5000"
+
+    db-backend:
+        # Database service
+        build: ./db-backend
+        ports:
+            - "5432:5432"
+
+    frontend:
+        # Frontend UI
+        build: ./frontend
+        ports:
+            - "3000:3000"
+
+volumes:
+    ollama-storage:
