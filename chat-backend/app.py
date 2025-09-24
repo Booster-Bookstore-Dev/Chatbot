@@ -11,10 +11,10 @@ from flask import Flask, request, jsonify
 
 load_dotenv('./.env')
 
-INDEX_PATH = os.getenv('INDEX_PATH', '/data') 
+INDEX_PATH = os.getenv('INDEX_PATH', './data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
-DATA_PATH = os.getenv('DATA_PATH', '/start_data')
+DATA_PATH = os.getenv('DATA_PATH', './start_data')
 
 #MAKE THESE IN .env
 LLM_ENDPOINT = 'http://ollama:11434/api/chat'
