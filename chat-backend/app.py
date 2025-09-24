@@ -137,8 +137,8 @@ def search_api():
 @app.route("/chat", methods=["POST"])
 def llm_chat():
     req_data = request.json or {}
-    user_message = req_data["message"]
-    history = req_data["history"]
+    user_message = req_data.get("message", "")
+    history = req_data.get("history", False)
     if not user_message:
         return jsonify({"error": "No message provided"})
     if not history:
@@ -152,7 +152,8 @@ def llm_chat():
                     - Return exactly the number of books the user asks for, no more. 
                     - Keep replies concise and direct. 
                     - When asked for similar books, exclude any with the same title as the reference. 
-                    - Do not explain your reasoning or mention tools in responses."""
+                    - Do not explain your reasoning or mention tools in responses.
+                    - If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other)."""
             },
             {
                 'role': 'user',
