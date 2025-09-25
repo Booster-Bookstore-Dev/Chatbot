@@ -1,19 +1,49 @@
 body
 {
-    background-color: darkslategray;
+    background-color: darkslategrey;
     font-family:Verdana, Geneva, Tahoma, sans-serif;
     text-align: center;
+
 }
 
 h1
 {
-    color:grey;
+    color:white;
     text-align: center;
 }
 
 h2
 {
-    color: brown;
+    color: white;
+
     text-align: center;
     font-weight: 200;
+}
+
+/* Add a black background color to the top navigation */
+.topnav {
+  background-color: darkgray;
+  overflow: hidden;
+}
+
+/* Style the links inside the navigation bar */
+.topnav a {
+  float: left;
+  color:black;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+  font-size: 17px;
+}
+
+/* Change the color of links on hover */
+.topnav a:hover {
+  background-color: burlywood;
+  color: white;
+}
+
+/* Add a color to the active/current link */
+.topnav a.active {
+  background-color: grey;
+  color: black;
 }
