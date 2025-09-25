@@ -11,10 +11,10 @@ from flask import Flask, request, jsonify
 
 load_dotenv('./.env')
 
-INDEX_PATH = os.getenv('INDEX_PATH', './data') 
+INDEX_PATH = os.getenv('INDEX_PATH', '/data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
-DATA_PATH = os.getenv('DATA_PATH', './start_data')
+DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', '/start_data'))
 
 #MAKE THESE IN .env
 LLM_ENDPOINT = 'http://ollama:11434/api/chat'
@@ -111,9 +111,30 @@ def call_llm(messages, tools, stream):
             }
         )
         data = llm_res.json()
-        return data
+        if "tool_calls" in data:
+            print(data["tool_calls"], flush=True)
+            #possibly append tool call message here?
+            for call in data["tool_calls"]:
+                if call["name"] == "book_search":
+                    
+                    messages.append(
+                        {
+                            'role': 'user', #Change 5 to work with the call from the LLM
+                            'content': faiss_search(call["function"]["arguments"]["query"], 5)
+                        }
+                    )
+                elif call["name"] == "reply":
+                    messages.append({
+                        'role' : 'assistant',
+                        'content': call["function"]["arguments"]["reply"]
+                    })
+                    return messages
+        # print(messages, flush=True)
+        
+        call_llm(messages, tools[-1:], False)
     except:
         return {"error": "no data"}
+    return messages
 
 
 #Routes
