@@ -101,40 +101,50 @@ def faiss_search(query:str, k=5):
 
 #LLM functions
 def call_llm(messages, tools, stream):
-    try:
-        llm_res = requests.post(LLM_ENDPOINT,headers= { "Content-Type": "application/json" },
+    llm_response = requests.post(LLM_ENDPOINT, headers= { "Content-Type": "application/json" },
 			json= {
 				"model": OLLAMA_MODEL,
                 "messages": messages,
                 "tools": tools,
                 "stream": stream,
-            }
-        )
-        data = llm_res.json()
-        if "tool_calls" in data:
-            print(data["tool_calls"], flush=True)
-            #possibly append tool call message here?
-            for call in data["tool_calls"]:
-                if call["name"] == "book_search":
-                    
-                    messages.append(
-                        {
-                            'role': 'user', #Change 5 to work with the call from the LLM
-                            'content': faiss_search(call["function"]["arguments"]["query"], 5)
-                        }
-                    )
-                elif call["name"] == "reply":
+                })
+    data = llm_response.json()
+    print(data, flush=True)
+    assistant_msg = data["message"]
+    messages.append(assistant_msg)
+    
+    if "tool_calls" in assistant_msg:
+        print("Book_Search called", flush=True)
+        print(assistant_msg, flush=True)
+        for call in assistant_msg["tool_calls"]:
+            if call["function"]["name"] == "book_search":
+                if call["function"]["arguments"]["query"]:
+                    args = call["function"]["arguments"]
+                    tool_result = faiss_search(args["query"], args["numberOfBooks"])
+                    # Append tool output to the chat history
+                    tool_output= set({})
+                    for result in tool_result:
+                        tool_output.add(result["title"] +" by " +result["authors"] +" with a rating of " + str(result["average_rating"].item()))
+                    print(tool_output)
                     messages.append({
-                        'role' : 'assistant',
-                        'content': call["function"]["arguments"]["reply"]
+                        "role": "tool",
+                        "content": str(tool_result),
+                        "tool_name": "book_search"
                     })
-                    return messages
-        # print(messages, flush=True)
-        
-        call_llm(messages, tools[-1:], False)
-    except:
-        return {"error": "no data"}
-    return messages
+                    return call_llm(messages,[tools[1]],stream)
+            if call["function"]["arguments"]["reply"]:
+                messages.append({"role": "assistant", "content" : call["function"]["arguments"]["reply"]})
+                print(json.dumps(messages,indent=4), flush=True)
+                return messages
+    else:
+        print(assistant_msg, flush=True)
+        reply = assistant_msg["content"]
+        if "</think>" in reply:
+            end_index = reply.index("</think>")
+            reply = reply[end_index+9:]
+            print(reply, flush=True)
+            #I want to return messages
+        return reply
 
 
 #Routes
@@ -184,14 +194,13 @@ def llm_chat():
     else:
         messages = history + [{'role': 'user', 'content': user_message }]
     
-    tools=[
-        {
-            "type": "function",
-            "function" : {
-                "name" : "book_search",
-                "description" :
-                    "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
-                "parmeters" : {
+    tools=[{
+        
+        "type": "function",
+            "function": {
+                "name": "book_search",
+                "description": "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
+                "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
@@ -206,7 +215,7 @@ def llm_chat():
                     "required": ["query"]
                 }
             }
-        },
+    },
         {
         "type": "function",
             "function": {
