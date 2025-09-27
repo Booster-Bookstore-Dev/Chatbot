@@ -1,0 +1,18 @@
+services:
+    cloudflared:
+        # Runs Cloudflare tunnel to expose the app (Vincent only)
+        image: cloudflare/cloudflared:latest
+        restart: unless-stopped
+        command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
+    #Below closes all the ports so they can only communicate with each other
+    ollama:
+        ports: []
+
+    chat-backend:
+        ports: []
+
+    db-backend:
+        ports: []
+
+    frontend:
+        ports: []

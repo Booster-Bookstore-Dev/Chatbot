@@ -1,0 +1,6 @@
+*.csv
+*.pkl
+*.index
+/data
+/start_data
+output.json
