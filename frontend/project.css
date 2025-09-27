@@ -1,20 +1,35 @@
 body
 {
-    background-color: darkslategrey;
+    background-color: #7d8982;
     font-family:Verdana, Geneva, Tahoma, sans-serif;
     text-align: center;
 
 }
 
+/*Top Section of the HTML Files*/
+.top-section
+{
+  background-color: #7d8982;
+  padding: 50px;
+}
+
+/*Bottom Section of the HTML Files*/
+.bottom-section
+{
+  background-image: url('images/bookstoreLayout.jpg');
+  background-size: cover;
+
+}
+
 h1
 {
-    color:white;
-    text-align: center;
+  color:#c6c4b8 ;
+  text-align: center;
 }
 
 h2
 {
-    color: white;
+    color: #c6c4b8 ;
 
     text-align: center;
     font-weight: 200;
@@ -22,28 +37,28 @@ h2
 
 /* Add a black background color to the top navigation */
 .topnav {
-  background-color: darkgray;
+  /*background-color: #c6c4b8 #946a43;*/
   overflow: hidden;
 }
 
 /* Style the links inside the navigation bar */
 .topnav a {
   float: left;
-  color:black;
+  color:white;
   text-align: center;
   padding: 14px 16px;
-  text-decoration: none;
-  font-size: 17px;
+  text-decoration:underline;
+  font-size: 14px;
 }
 
 /* Change the color of links on hover */
 .topnav a:hover {
-  background-color: burlywood;
+  background-color: #b87954;
   color: white;
 }
 
 /* Add a color to the active/current link */
 .topnav a.active {
-  background-color: grey;
+  background-color: #693729;
   color: black;
 }
