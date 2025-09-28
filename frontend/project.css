@@ -1,6 +1,5 @@
 body
 {
-    background-color: #7d8982;
     font-family:Verdana, Geneva, Tahoma, sans-serif;
     text-align: center;
 
@@ -9,8 +8,8 @@ body
 /*Top Section of the HTML Files*/
 .top-section
 {
-  background-color: #7d8982;
-  padding: 50px;
+  background-image: url('images/spaceBackground.jpg');
+  background-size: cover;
 }
 
 /*Bottom Section of the HTML Files*/
