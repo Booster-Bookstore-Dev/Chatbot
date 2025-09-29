@@ -17,7 +17,7 @@ DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
 DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', '/start_data'))
 
 #MAKE THESE IN .env
-LLM_ENDPOINT = 'http://ollama:11434/api/chat'
+LLM_ENDPOINT = 'http://host.docker.internal:11434/api/chat'
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL',"qwen3:1.7b")
 
 
