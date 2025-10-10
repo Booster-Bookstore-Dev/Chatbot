@@ -2,13 +2,13 @@ body
 {
     font-family:Verdana, Geneva, Tahoma, sans-serif;
     text-align: center;
-
+    margin: auto;
 }
 
 /*Top Section of the HTML Files*/
 .top-section
 {
-  background-image: url('images/bookstorelayout.jpg');
+  background-image: url('images/LandingHeaderImage.jpg');
   background-size: cover;
 }
 
@@ -22,7 +22,7 @@ body
 
 .blank-space
 {
-  background-color: black;
+  background-color: white;
   height: 100px;
   width: auto;
 }
@@ -40,6 +40,15 @@ h2
     text-align: center;
     font-weight: 200;
 }
+/*Logo Image*/
+.logo
+{
+  background-image: url('images/boosterBookstoreLogo.png');
+  background-size: cover;
+  height: 300px;
+  width: 300px;
+  margin: auto;
+}
 
 /* Add a black background color to the top navigation */
 .topnav {
@@ -50,6 +59,7 @@ h2
 /* Style the links inside the navigation bar */
 .topnav a {
   float: middle;
+  background-color: brown;
   color:white;
   text-align: center;
   padding: 16px 20px;
@@ -67,5 +77,36 @@ h2
 .topnav a.active {
   background-color: #999c91;
   color: black;
+}
+
+/*Search Bar on the Navigation Bar*/
+.topnav input[type=text] 
+{
+  float: center;
+  padding: 14px 50px;
+  margin-bottom: 12px;
+  margin-right: 20px;
+  font-size: 14px;
+  text-align: center;
+} 
+
+/*Image Gallery on Home Page*/
+.image-gallery
+{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+}
+
+.image-gallery img
+{
+  width: 200px;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s;
+
 }
 
