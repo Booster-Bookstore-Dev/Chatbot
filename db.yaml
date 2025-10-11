@@ -1,12 +1,4 @@
 services:
-    chat-backend:
-        # Main backend service
-        build: ./chat-backend
-        ports:
-            - "5050:5050"
-        volumes:
-            - chat-data:/data
-
     db-backend:
         # Database service
         build: ./db-backend
@@ -19,12 +11,6 @@ services:
             - "27017:27017"
         volumes:
             - mongo-data:/data/db
-    frontend:
-        # Frontend UI
-        build: ./frontend
-        ports:
-            - "3000:3000"
 
 volumes:
     mongo-data:
-    chat-data:
