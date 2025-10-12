@@ -6,13 +6,13 @@ services:
         command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TOKEN}
     #Below closes all the ports so they can only communicate with each other
     ollama:
-        ports: []
+        ports: !override []
 
     chat-backend:
-        ports: []
+        ports: !override []
 
     db-backend:
-        ports: []
+        ports: !override []
 
     frontend:
-        ports: []
+        ports: !override []

@@ -14,10 +14,10 @@ load_dotenv('./.env')
 INDEX_PATH = os.getenv('INDEX_PATH', '/data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
-DATA_PATH = os.getenv('DATA_PATH', '/start_data')
+DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', '/start_data'))
 
 #MAKE THESE IN .env
-LLM_ENDPOINT = 'http://ollama:11434/api/chat'
+LLM_ENDPOINT = 'http://host.docker.internal:11434/api/chat'
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL',"qwen3:1.7b")
 
 
@@ -101,19 +101,50 @@ def faiss_search(query:str, k=5):
 
 #LLM functions
 def call_llm(messages, tools, stream):
-    try:
-        llm_res = requests.post(LLM_ENDPOINT,headers= { "Content-Type": "application/json" },
+    llm_response = requests.post(LLM_ENDPOINT, headers= { "Content-Type": "application/json" },
 			json= {
 				"model": OLLAMA_MODEL,
                 "messages": messages,
                 "tools": tools,
                 "stream": stream,
-            }
-        )
-        data = llm_res.json()
-        return data
-    except:
-        return {"error": "no data"}
+                })
+    data = llm_response.json()
+    print(data, flush=True)
+    assistant_msg = data["message"]
+    messages.append(assistant_msg)
+    
+    if "tool_calls" in assistant_msg:
+        print("Book_Search called", flush=True)
+        print(assistant_msg, flush=True)
+        for call in assistant_msg["tool_calls"]:
+            if call["function"]["name"] == "book_search":
+                if call["function"]["arguments"]["query"]:
+                    args = call["function"]["arguments"]
+                    tool_result = faiss_search(args["query"], args["numberOfBooks"])
+                    # Append tool output to the chat history
+                    tool_output= set({})
+                    for result in tool_result:
+                        tool_output.add(result["title"] +" by " +result["authors"] +" with a rating of " + str(result["average_rating"].item()))
+                    print(tool_output)
+                    messages.append({
+                        "role": "tool",
+                        "content": str(tool_result),
+                        "tool_name": "book_search"
+                    })
+                    return call_llm(messages,[tools[1]],stream)
+            if call["function"]["arguments"]["reply"]:
+                messages.append({"role": "assistant", "content" : call["function"]["arguments"]["reply"]})
+                print(json.dumps(messages,indent=4), flush=True)
+                return messages
+    else:
+        print(assistant_msg, flush=True)
+        reply = assistant_msg["content"]
+        if "</think>" in reply:
+            end_index = reply.index("</think>")
+            reply = reply[end_index+9:]
+            print(reply, flush=True)
+            #I want to return messages
+        return reply
 
 
 #Routes
@@ -137,8 +168,8 @@ def search_api():
 @app.route("/chat", methods=["POST"])
 def llm_chat():
     req_data = request.json or {}
-    user_message = req_data["message"]
-    history = req_data["history"]
+    user_message = req_data.get("message", "")
+    history = req_data.get("history", False)
     if not user_message:
         return jsonify({"error": "No message provided"})
     if not history:
@@ -152,7 +183,8 @@ def llm_chat():
                     - Return exactly the number of books the user asks for, no more. 
                     - Keep replies concise and direct. 
                     - When asked for similar books, exclude any with the same title as the reference. 
-                    - Do not explain your reasoning or mention tools in responses."""
+                    - Do not explain your reasoning or mention tools in responses.
+                    - If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other)."""
             },
             {
                 'role': 'user',
@@ -162,14 +194,13 @@ def llm_chat():
     else:
         messages = history + [{'role': 'user', 'content': user_message }]
     
-    tools=[
-        {
-            "type": "function",
-            "function" : {
-                "name" : "book_search",
-                "description" :
-                    "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
-                "parmeters" : {
+    tools=[{
+        
+        "type": "function",
+            "function": {
+                "name": "book_search",
+                "description": "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
+                "parameters": {
                     "type": "object",
                     "properties": {
                         "query": {
@@ -184,7 +215,7 @@ def llm_chat():
                     "required": ["query"]
                 }
             }
-        },
+    },
         {
         "type": "function",
             "function": {
@@ -218,4 +249,4 @@ if __name__ == "__main__":
     else:
         build_index()
 
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5050)
