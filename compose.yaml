@@ -4,6 +4,13 @@ services:
         build: ./chat-backend
         ports:
             - "5050:5050"
+        environment:
+            - OLLAMA_MODEL=${OLLAMA_MODEL}
+            - CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}
+            - INDEX_PATH=${INDEX_PATH}
+            - INDEX_NAME=${INDEX_NAME}
+            - DATAFRAME_NAME=${DATAFRAME_NAME}
+            - DATA_PATH=${DATA_PATH}
         volumes:
             - chat-data:/data
 
