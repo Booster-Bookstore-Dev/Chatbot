@@ -1,0 +1,37 @@
+services:
+    chat-backend:
+        # Main backend service
+        build: ./chat-backend
+        ports:
+            - "5050:5050"
+        environment:
+            - OLLAMA_MODEL=${OLLAMA_MODEL}
+            - CLOUDFLARE_TOKEN=${CLOUDFLARE_TOKEN}
+            - INDEX_PATH=${INDEX_PATH}
+            - INDEX_NAME=${INDEX_NAME}
+            - DATAFRAME_NAME=${DATAFRAME_NAME}
+            - DATA_PATH=${DATA_PATH}
+        volumes:
+            - chat-data:/data
+
+    db-backend:
+        # Database service
+        build: ./db-backend
+        depends_on:
+            - mongo
+    mongo:
+        # MongoDB service
+        image: mongo:latest
+        ports:
+            - "27017:27017"
+        volumes:
+            - mongo-data:/data/db
+    frontend:
+        # Frontend UI
+        build: ./frontend
+        ports:
+            - "3000:3000"
+
+volumes:
+    mongo-data:
+    chat-data:
