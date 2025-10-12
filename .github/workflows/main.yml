@@ -8,6 +8,7 @@ jobs:
   deploy:
     name: Run deploy script
     runs-on: self-hosted
+    environment: main
 
     steps:
       - name: Checkout repository
