@@ -11,4 +11,6 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
+COPY {BOOKS_DATA_PATH} /data/books_data.csv
+
 CMD ["python", "app.py"]
