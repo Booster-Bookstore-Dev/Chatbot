@@ -1,8 +1,9 @@
 body
 {
-    font-family:Verdana, Geneva, Tahoma, sans-serif;
+    font-family:Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
     text-align: center;
     margin: auto;
+    background-color: #1b1b1a;
 }
 
 /*Top Section of the HTML Files*/
@@ -15,16 +16,10 @@ body
 /*Bottom Section of the HTML Files*/
 .bottom-section
 {
-  background-image: url('images/bookstoreLayout.jpg');
-  background-size: cover;
+background-color: #1b1b1a;
+height: auto;
+width: auto;
 
-}
-
-.blank-space
-{
-  background-color: white;
-  height: 100px;
-  width: auto;
 }
 
 h1
@@ -35,10 +30,10 @@ h1
 
 h2
 {
-    color: white ;
+  color: white ;
+  text-align: center;
+  font-weight: 200;
 
-    text-align: center;
-    font-weight: 200;
 }
 /*Logo Image*/
 .logo
@@ -91,22 +86,29 @@ h2
 } 
 
 /*Image Gallery on Home Page*/
-.image-gallery
+.scroll-container
 {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 20px;
-  padding: 20px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 10px;
 }
-
-.image-gallery img
+.scroll-container img
 {
+  display: inline-block;
+  margin-right: 10px;
   width: 200px;
   height: auto;
   border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  animation: scroll-left 30s linear infinite;
+}
 
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
