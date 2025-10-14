@@ -11,6 +11,7 @@ body
 {
   background-image: url('images/LandingHeaderImage.jpg');
   background-size: cover;
+  color: white;
 }
 
 /*Bottom Section of the HTML Files*/
@@ -19,7 +20,7 @@ body
 background-color: #1b1b1a;
 height: auto;
 width: auto;
-
+color: white;
 }
 
 h1
@@ -100,7 +101,7 @@ h2
   height: auto;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  animation: scroll-left 30s linear infinite;
+  animation: scroll-left 20s linear infinite;
 }
 
 @keyframes scroll-left {
