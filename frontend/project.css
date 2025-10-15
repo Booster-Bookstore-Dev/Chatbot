@@ -1,6 +1,6 @@
 body
 {
-    font-family:Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+    font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
     text-align: center;
     margin: auto;
     background-color: #1b1b1a;
@@ -113,3 +113,27 @@ h2
   }
 }
 
+
+/*Footer Section*/
+footer 
+{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  gap: 24px;
+  background-color: #333;
+  color: #fff;
+  padding: 20px;
+}
+
+.column
+{
+  flex: 1 1 200px;
+  min-width: 220px;
+}
+
+footer p, footer li
+{
+white-space: normal;
+word-break: normal;
+}
