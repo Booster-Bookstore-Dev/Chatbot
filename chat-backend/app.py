@@ -11,7 +11,7 @@ from flask import Flask, request, jsonify
 
 load_dotenv('./.env')
 
-INDEX_PATH = os.getenv('INDEX_PATH', '/data') 
+INDEX_PATH = os.getenv('INDEX_PATH', './data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
 DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', './start_data'))
