@@ -13,7 +13,7 @@ services:
             - CSV_PATH=${CSV_PATH}
         volumes:
             - chat-data:/data
-            - ${CSV_PATH}:/start_data/data.csv
+            - ${CSV_PATH}:/start_data/
 
     db-backend:
         # Database service
