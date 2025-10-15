@@ -25,4 +25,5 @@ jobs:
                   INDEX_NAME: ${{ vars.INDEX_NAME }}
                   DATAFRAME_NAME: ${{ vars.DATAFRAME_NAME }}
                   DATA_PATH: ${{ vars.DATA_PATH }}
+                  CSV_PATH: ${{ vars.CSV_PATH }}
               run: ./scripts/deploy.sh
