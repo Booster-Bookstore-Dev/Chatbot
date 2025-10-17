@@ -191,7 +191,29 @@ h3
   }
 }
 
+/*FAQ Section */
+.FAQ-section {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
+.FAQ-section.active {
+  border: none;
+}
+
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.wrapper {
+  max-width: 75%;
+  margin: auto;
+}
 
  /* Style the buttons that are used to open and close the accordion panel */
 .accordion {
