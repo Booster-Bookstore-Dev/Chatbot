@@ -1,6 +1,6 @@
 body
 {
-    font-family:'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     text-align: center;
     margin: auto;
     background-color: #1b1b1a;
@@ -23,25 +23,26 @@ width: auto;
 color: white;
 }
 
+/*Headings*/
 h1
 {
   color: white;
   text-align: center;
+  font-size: 40px;
 }
 
 h2
 {
-  color: white ;
+  color: #ffcc00 ;
   text-align: center;
-  font-weight: 200;
-
+  font-weight: 40px;
 }
 
 h3
 {
   color: white;
   text-align: center;
-  padding: 1rem 0;
+  font-weight: 30px;
 }
 
 /*Logo Image*/
@@ -56,24 +57,23 @@ h3
 
 /* Add a black background color to the top navigation */
 .topnav {
-  /*background-color: #c6c4b8 #946a43;*/
   overflow: hidden;
 }
 
 /* Style the links inside the navigation bar */
 .topnav a {
   float: middle;
-  background-color: brown;
+  background-color: black;
   color:white;
   text-align: center;
   padding: 16px 20px;
-  text-decoration:underline;
+  text-decoration:solid;
   font-size: 14px;
 }
 
 /* Change the color of links on hover */
 .topnav a:hover {
-  background-color: #b87954;
+  background-color: grey;
   color: white;
 }
 
@@ -121,28 +121,77 @@ h3
   }
 }
 
-.FAQ-section {
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  margin: 10px 0;
+/* Container with image + text side by side */
+.left-align {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background-color: #111;
+  color: #fff;
+  padding: 40px;
+  border-radius: 12px;
 }
 
-.FAQ-section.active {
-  border: none;
+/* Image */
+.left-align img.left-image {
+  width: 400px;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-* {
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
+/* Text container (so elements stack vertically) */
+.text-content {
+  max-width: 600px;
 }
 
-.wrapper {
-  max-width: 75%;
-  margin: auto;
+/* Headline */
+.text-content h2 {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+  color: #ffcc00;
 }
+
+/* Paragraph */
+.text-content p {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+/* Button styling */
+.aboutUs-button, .shop-button {
+  display: inline-block;
+  background-color: #ffcc00;
+  color: #111;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-weight: bold;
+  text-decoration: none;
+  transition: background-color 0.3s, transform 0.2s;
+}
+
+/* Button hover effect */
+.aboutUs-button:hover, .shop-button:hover {
+  background-color: #ffd84d;
+  transform: translateY(-2px);
+}
+
+/* Responsive stacking */
+@media (max-width: 768px) {
+  .left-align {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .left-align img.left-image {
+    width: 100%;
+    max-width: 350px;
+  }
+}
+
+
 
  /* Style the buttons that are used to open and close the accordion panel */
 .accordion {
@@ -188,23 +237,67 @@ h3
 /*Footer Section*/
 footer 
 {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-around;
-  gap: 24px;
   background-color: #333;
-  color: #fff;
-  padding: 20px;
+  color: white;
+  padding: 30px 10%;
 }
 
-.column
+#footer-container 
 {
-  flex: 1 1 200px;
-  min-width: 220px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr)); /* Left, Center, Right */
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 40px;
 }
 
-footer p, footer li
+#footer-container h3 
 {
-white-space: normal;
-word-break: normal;
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+  color: #f5c542; /* gold accent */
 }
+
+#footer-container a 
+{
+  display: block;
+  color: #ffffff;
+  text-decoration: none;
+  margin: 6px 0;
+  font-size: 0.95rem;
+  transition: color 0.3s ease;
+}
+
+#footer-container a:hover 
+{
+  color: #f5c542; /* hover color */
+  text-decoration: underline;
+}
+
+/* Remove bullet points if any ULs remain */
+#footer-container ul 
+{
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+  /*Copyright Section of the Footer*/
+  .footer-copyright 
+  {
+    grid-column: 1 / -1;
+    text-align: center;
+    border-top: 1px solid #555;
+    padding-top: 20px;
+    padding-top: 12px;
+  }
+
+  footer-copyright p
+  {
+    font-size: 0.85rem;
+    color: #bbb;
+    margin: 0;
+    letter-spacing: 0.5px;
+  }
+
+
