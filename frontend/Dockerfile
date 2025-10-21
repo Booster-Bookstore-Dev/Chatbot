@@ -1,5 +1,5 @@
 #Dummy dockerfile
-FROM alpine:latest
+FROM nginx:latest
 
 # Do nothing
 CMD ["tail", "-f", "/dev/null"]

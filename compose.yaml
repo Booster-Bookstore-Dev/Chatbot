@@ -4,8 +4,16 @@ services:
         build: ./chat-backend
         ports:
             - "5050:5050"
+        environment:
+            - OLLAMA_MODEL=${OLLAMA_MODEL}
+            - INDEX_PATH=${INDEX_PATH}
+            - INDEX_NAME=${INDEX_NAME}
+            - DATAFRAME_NAME=${DATAFRAME_NAME}
+            - DATA_PATH=${DATA_PATH}
+            - CSV_PATH=${CSV_PATH}
         volumes:
             - chat-data:/data
+            - ${CSV_PATH}:/start_data/
 
     db-backend:
         # Database service

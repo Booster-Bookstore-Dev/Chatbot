@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+    push:
+        branches:
+            - main
+jobs:
+    deploy:
+        name: Run deploy script
+        runs-on: self-hosted
+        environment: main
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Make deploy script executable
+              run: chmod +x scripts/deploy.sh
+
+            - name: Run deploy script
+              env:
+                  OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
+                  CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+                  INDEX_PATH: ${{ vars.INDEX_PATH }}
+                  INDEX_NAME: ${{ vars.INDEX_NAME }}
+                  DATAFRAME_NAME: ${{ vars.DATAFRAME_NAME }}
+                  DATA_PATH: ${{ vars.DATA_PATH }}
+                  CSV_PATH: ${{ vars.CSV_PATH }}
+              run: ./scripts/deploy.sh
