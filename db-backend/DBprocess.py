@@ -1,240 +1,304 @@
-import os
-import sys
-import json
-import requests
-from dotenv import load_dotenv
-import faiss
-import numpy as np
+mport os
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
 import pandas as pd
-from sentence_transformers import SentenceTransformer
-from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+from fastapi import FastAPI, UploadFile, File
+from pydantic import BaseModel
+from pymongo import MongoClient, ASCENDING, TEXT
+from pymongo.errors import DuplicateKeyError
+from rapidfuzz import process, fuzz
 
-load_dotenv('./.env')
+# -----------------------------
+# Env & Mongo
+# -----------------------------
+load_dotenv()
+MONGODB_URI = os.getenv("MONGODB_URI")
+DB_NAME = os.getenv("DB_NAME", "library")
+BOOKS_COLL = os.getenv("BOOKS_COLL", "books")
+FAQ_COLL = os.getenv("FAQ_COLL", "faqs")
+USE_ATLAS_SEARCH = os.getenv("USE_ATLAS_SEARCH", "true").lower() == "true"
 
-INDEX_PATH = os.getenv('INDEX_PATH', './data') 
-INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
-DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
-DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', './start_data'))
+if not MONGODB_URI:
+    raise RuntimeError("MONGODB_URI is required (set it in .env).")
 
-#MAKE THESE IN .env
-LLM_ENDPOINT = 'http://host.docker.internal:11434/api/chat'
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL',"qwen3:1.7b")
+client = MongoClient(MONGODB_URI)
+db = client[DB_NAME]
+books = db[BOOKS_COLL]
+faqs = db[FAQ_COLL]
 
+# -----------------------------
+# Index helpers
+# -----------------------------
+def ensure_indexes():
+    # For dedupe: title+author+isbn (isbn can be absent)
+    try:
+        books.create_index(
+            [("title", ASCENDING), ("author", ASCENDING), ("isbn", ASCENDING)],
+            unique=True,
+            name="uniq_title_author_isbn"
+        )
+    except Exception:
+        pass
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
-index = None
-booksDataFrame= None
+    # Fallback text index when Atlas Search is off
+    # (do NOT mix with $search, it's only for fallback)
+    try:
+        books.create_index(
+            [
+                ("title", TEXT),
+                ("author", TEXT),
+                ("description", TEXT),
+                ("tags", TEXT),
+            ],
+            name="books_text_idx"
+        )
+    except Exception:
+        pass
 
-app = Flask(__name__)
+    # FAQs: unique question
+    try:
+        faqs.create_index([("question", ASCENDING)], unique=True, name="uniq_question")
+    except Exception:
+        pass
 
+ensure_indexes()
 
-# Index functions
-def build_index():
-    # Builds the FAISS index and loads it into memory
-    global index
-    global booksDataFrame
-    print("Building FAISS index...")
-    #Reads data from csv and stores in a pandas Data Frame
-    booksDataFrame = pd.read_csv(DATA_PATH + '/data.csv', on_bad_lines='warn')
-    #Creates a combined list of the 
-    booksDataFrame['combined'] = booksDataFrame["title"].astype(str) + " by " + booksDataFrame["authors"].astype(str)
-    #outputs the dataframe to a pickle file
-    os.makedirs(INDEX_PATH, exist_ok=True)
-    booksDataFrame.to_pickle(INDEX_PATH + "/" + DATAFRAME_NAME)
-    #Encodes using the LLM specified above to create vectors for the combined list in the Data Frame
-    embeddings = model.encode(booksDataFrame['combined'].astype(str).tolist(), convert_to_numpy=True)
-    #Finds out how many dimensions there are in the matrix
-    dim = embeddings.shape[1]
-    #Creates an empty flat index with the number of dimensions in our embeddings
-    new_index = faiss.IndexFlatL2(dim)
-    #adds our embeddings (dim # of dimension vectors) to the index we just created
-    new_index.add(embeddings)
-    
-    #makes the index path if it doesnt exist 
-    
-    #uses the faiss library to write the index with index name to index path
-    faiss.write_index(new_index, INDEX_PATH + '/' + INDEX_NAME)
-    #sets global index to the new index we just created
-    index = new_index
-    print("FAISS index built and loaded.")
+# -----------------------------
+# FAQ fuzzy store (cached view)
+# -----------------------------
+class FAQStore:
+    def __init__(self):
+        self._refresh()
 
-#This loads the index from our index loacation if it exists.
-def load_index():
-    global index
-    index = faiss.read_index(INDEX_PATH + '/' + INDEX_NAME)
-    print("Index reloaded.")
-    
-def load_data():
-    global booksDataFrame
-    booksDataFrame = pd.read_pickle(INDEX_PATH + "/" + DATAFRAME_NAME)
-    print("Data Loaded")
+    def _refresh(self):
+        docs = list(faqs.find({}, {"_id": 0, "question": 1, "answer": 1}))
+        self._q_to_a = {d["question"]: d["answer"] for d in docs}
+        self._norm_map = {self._norm(q): q for q in self._q_to_a.keys()}
 
-def faiss_search(query:str, k=5):
-    global index
-    global booksDataFrame
-    
-    if not query:
-        return -1
-    
-    query_vec=model.encode([query],convert_to_numpy=True)
-    
-    #Searches the index and returns the top 20 + k results
-    D, I = index.search(query_vec, k=20+k)
-    results = []
-    
-    #This sets the minimum results to 2 distinct results 
-    for i, location in enumerate(I[0]):
-        row=booksDataFrame.iloc[location]
-        row = {
-            "title": row["title"],
-            "authors": row["authors"],
-            "average_rating": row["average_rating"]
-        }
-        print(row, flush=True)
-        #only adds distinct results (there are some repeats in the test dataset)
-        if row not in results:
-            results.append(row)
-        if len(results) >= 2 and len(results) >=k:
-            break
-    return results
+    @staticmethod
+    def _norm(text: str) -> str:
+        return " ".join(text.lower().strip().split())
 
+    def answer(self, question: str, threshold: int = 75):
+        if not question.strip() or not self._q_to_a:
+            return None
+        match, score, _ = process.extractOne(
+            self._norm(question),
+            list(self._norm_map.keys()),
+            scorer=fuzz.token_set_ratio
+        )
+        if score >= threshold:
+            canonical_q = self._norm_map[match]
+            return {"question": canonical_q, "answer": self._q_to_a[canonical_q], "confidence": score}
+        return None
 
-#LLM functions
-def call_llm(messages, tools, stream):
-    llm_response = requests.post(LLM_ENDPOINT, headers= { "Content-Type": "application/json" },
-			json= {
-				"model": OLLAMA_MODEL,
-                "messages": messages,
-                "tools": tools,
-                "stream": stream,
-                })
-    data = llm_response.json()
-    print(data, flush=True)
-    assistant_msg = data["message"]
-    messages.append(assistant_msg)
-    
-    if "tool_calls" in assistant_msg:
-        print("Book_Search called", flush=True)
-        print(assistant_msg, flush=True)
-        for call in assistant_msg["tool_calls"]:
-            if call["function"]["name"] == "book_search":
-                if call["function"]["arguments"]["query"]:
-                    args = call["function"]["arguments"]
-                    tool_result = faiss_search(args["query"], args["numberOfBooks"])
-                    # Append tool output to the chat history
-                    tool_output= set({})
-                    for result in tool_result:
-                        tool_output.add(result["title"] +" by " +result["authors"] +" with a rating of " + str(result["average_rating"].item()))
-                    print(tool_output)
-                    messages.append({
-                        "role": "tool",
-                        "content": str(tool_result),
-                        "tool_name": "book_search"
-                    })
-                    return call_llm(messages,[tools[1]],stream)
-            if call["function"]["arguments"]["reply"]:
-                messages.append({"role": "assistant", "content" : call["function"]["arguments"]["reply"]})
-                print(json.dumps(messages,indent=4), flush=True)
-                return messages
-    else:
-        print(assistant_msg, flush=True)
-        reply = assistant_msg["content"]
-        if "</think>" in reply:
-            end_index = reply.index("</think>")
-            reply = reply[end_index+9:]
-            print(reply, flush=True)
-            #I want to return messages
-        return reply
+FAQ_STORE = FAQStore()
 
+# Seed default FAQs (idempotent)
+DEFAULT_FAQS = [
+    {"question": "What are your business hours?", "answer": "We’re available 9am–5pm PT, Monday–Friday."},
+    {"question": "How do I reset my password?", "answer": "Use ‘Forgot password’ on the sign-in page; check your email link."},
+    {"question": "Do you offer refunds?", "answer": "Yes—within 30 days for undamaged items with a receipt."},
+    {"question": "How long does shipping take?", "answer": "Most orders arrive in 3–7 business days in the U.S."},
+]
+for faq in DEFAULT_FAQS:
+    try:
+        faqs.insert_one(faq)
+    except DuplicateKeyError:
+        pass
+FAQ_STORE._refresh()
 
-#Routes
-
-@app.route("/rebuild_index", methods=["POST"])
-def rebuild_index_api():
-    build_index()  # rebuild and reload immediately
-    return jsonify({"status": "index rebuilt"})
-
-#Temporary API to test the faiss search
-@app.route("/search", methods=["POST"])
-def search_api():
-    data = request.json or {}
-    query = data.get("query", "")
-    k = data.get("k", 5)
-    if not query:
-        return jsonify({"error": "No query provided"}), 400
-    response = faiss_search(query, k)
-    return jsonify(response)
-
-@app.route("/chat", methods=["POST"])
-def llm_chat():
-    req_data = request.json or {}
-    user_message = req_data.get("message", "")
-    history = req_data.get("history", False)
-    if not user_message:
-        return jsonify({"error": "No message provided"})
-    if not history:
-        messages = [
-            {
-                "role": "system",
-                "content": """/no_think 
-                    You are a bookstore assistant. 
-                    - Use the `book_search` tool only when the user explicitly requests books, or when you must fetch book data. 
-                    - Use the `reply` tool to send your response to the user.
-                    - Return exactly the number of books the user asks for, no more. 
-                    - Keep replies concise and direct. 
-                    - When asked for similar books, exclude any with the same title as the reference. 
-                    - Do not explain your reasoning or mention tools in responses.
-                    - If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other)."""
-            },
-            {
-                'role': 'user',
-                'content': user_message
-            }
-        ]
-    else:
-        messages = history + [{'role': 'user', 'content': user_message }]
-    
-    tools=[{
-        
-        "type": "function",
-            "function": {
-                "name": "book_search",
-                "description": "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search terms that should be used to find a book for the user."
-                        },
-                        "numberOfBooks": {
-                            "type": "integer",
-                            "description": "The number of books that you want returned"
-                        }
-                    },
-                    "required": ["query"]
-                }
-            }
-    },
+# -----------------------------
+# Search with Atlas Search (fallback to regex/text)
+# -----------------------------
+def atlas_search_pipeline(query: str, limit: int) -> List[Dict[str, Any]]:
+    """
+    Requires an Atlas Search index (e.g., named 'default') configured over fields:
+    title, author, isbn, description, tags
+    """
+    pipeline = [
         {
-        "type": "function",
-            "function": {
-                "name": "reply",
-                "description": "Sends the imput to the user as a reply to their question. Use if you do not need any other tools.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "reply": {
-                            "type": "string",
-                            "description": "Reply to send to the user."
-                        }
-                    },
-                    "required": ["query"]
+            "$search": {
+                "index": "default",  # change if your index name differs
+                "compound": {
+                    "should": [
+                        {"text": {"query": query, "path": ["title", "author"], "score": {"boost": {"value": 4}}}},
+                        {"text": {"query": query, "path": ["description", "tags"], "score": {"boost": {"value": 2}}}},
+                        {"autocomplete": {"query": query, "path": "title", "tokenOrder": "sequential", "score": {"boost": {"value": 6}}}},
+                    ],
                 }
+            }
+        },
+        {"$limit": limit},
+        {
+            "$project": {
+                "_id": 0,
+                "id": "$_id",
+                "title": 1,
+                "author": 1,
+                "isbn": 1,
+                "description": 1,
+                "tags": 1,
+                "score": {"$meta": "searchScore"},
+                "highlights": {"$meta": "searchHighlights"},
             }
         }
     ]
-    
-    return jsonify(call_llm(messages, tools, False))
-    # updated_messages = made changes
-    #copied app.py code to here
+    return list(books.aggregate(pipeline))
+
+def fallback_search(query: str, limit: int) -> List[Dict[str, Any]]:
+    # Prefer $text when index exists; else regex OR logic
+    results: List[Dict[str, Any]] = []
+    try:
+        # $text
+        cursor = books.find(
+            {"$text": {"$search": query}},
+            {
+                "_id": 0,
+                "id": "$_id",
+                "title": 1,
+                "author": 1,
+                "isbn": 1,
+                "description": 1,
+                "tags": 1,
+                "score": {"$meta": "textScore"},
+            },
+        ).sort([("score", {"$meta": "textScore"})]).limit(limit)
+        results = list(cursor)
+    except Exception:
+        pass
+
+    if not results:
+        # regex fallback across common fields (case-insensitive)
+        rx = {"$regex": query, "$options": "i"}
+        cursor = books.find(
+            {"$or": [{"title": rx}, {"author": rx}, {"description": rx}, {"tags": rx}]},
+            {"_id": 0, "id": "$_id", "title": 1, "author": 1, "isbn": 1, "description": 1, "tags": 1},
+        ).limit(limit)
+        results = list(cursor)
+    return results
+
+def search_books(query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    if not query.strip():
+        return []
+    if USE_ATLAS_SEARCH:
+        try:
+            hits = atlas_search_pipeline(query, limit)
+            if hits:
+                return hits
+        except Exception:
+            # silently fall back if Atlas Search not configured
+            pass
+    return fallback_search(query, limit)
+
+# -----------------------------
+# FastAPI
+# -----------------------------
+app = FastAPI(title="Chatbot Backend (PyMongo: FAQ + Book Search)")
+
+class SearchBody(BaseModel):
+    query: str
+    limit: int = 10
+
+class FAQBody(BaseModel):
+    question: str
+
+class ChatBody(BaseModel):
+    message: str
+    limit: int = 10
+
+BOOK_KEYWORDS = {"book", "title", "author", "isbn", "novel", "read", "library", "search"}
+
+def is_book_intent(text: str) -> bool:
+    t = text.lower()
+    return any(k in t for k in BOOK_KEYWORDS)
+
+@app.post("/upload_csv")
+async def upload_csv(file: UploadFile = File(...)):
+    """
+    Upload a CSV and upsert into MongoDB.
+    Required columns: title, author
+    Optional: isbn, description, tags
+    """
+    tmp = Path(f"_upload_{file.filename}")
+    with open(tmp, "wb") as f:
+        f.write(await file.read())
+
+    df = pd.read_csv(tmp)
+    for col in ["title", "author", "isbn", "description", "tags"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    # Upsert rows based on (title, author, isbn)
+    to_ops = []
+    for row in df.itertuples(index=False):
+        doc = {
+            "title": str(getattr(row, "title", "")).strip(),
+            "author": str(getattr(row, "author", "")).strip(),
+            "isbn": str(getattr(row, "isbn", "")).strip(),
+            "description": str(getattr(row, "description", "")).strip(),
+            "tags": str(getattr(row, "tags", "")).strip(),
+        }
+        if not doc["title"] and not doc["author"]:
+            continue
+        to_ops.append(
+            {
+                "updateOne": {
+                    "filter": {
+                        "title": doc["title"],
+                        "author": doc["author"],
+                        "isbn": doc["isbn"],
+                    },
+                    "update": {"$set": doc},
+                    "upsert": True,
+                }
+            }
+        )
+
+    inserted = 0
+    if to_ops:
+        res = books.bulk_write(to_ops, ordered=False)
+        # inserted count approximation (Mongo returns upserted ids separately)
+        inserted = (res.upserted_count or 0) + (res.modified_count or 0)
+
+    tmp.unlink(missing_ok=True)
+    return {"status": "ok", "processed": inserted}
+
+@app.post("/search")
+def api_search(body: SearchBody):
+    return {"results": search_books(body.query, body.limit)}
+
+@app.post("/faq")
+def api_faq(body: FAQBody):
+    ans = FAQ_STORE.answer(body.question)
+    return {"answer": ans}
+
+@app.post("/chat")
+def api_chat(body: ChatBody):
+    text = body.message.strip()
+    if is_book_intent(text):
+        return {"type": "book_search", "results": search_books(text, body.limit)}
+    ans = FAQ_STORE.answer(text)
+    if ans:
+        return {"type": "faq", "answer": ans}
+    return {"type": "fallback", "message": "I couldn’t find an answer. Try rephrasing or include a book title/author."}
+
+@app.post("/faq/upsert_defaults")
+def api_faq_upsert_defaults():
+    # Handy endpoint to ensure the default FAQs exist in DB (idempotent)
+    added = 0
+    for faq in DEFAULT_FAQS:
+        try:
+            faqs.insert_one(faq)
+            added += 1
+        except DuplicateKeyError:
+            pass
+    FAQ_STORE._refresh()
+    return {"status": "ok", "added": added}
+
+# For local dev
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend_mongo:app", host="0.0.0.0", port=5051, reload=True)
