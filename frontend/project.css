@@ -305,22 +305,68 @@ footer
   margin: 0;
 }
 
-  /*Copyright Section of the Footer*/
-  .footer-copyright 
-  {
-    grid-column: 1 / -1;
-    text-align: center;
-    border-top: 1px solid #555;
-    padding-top: 20px;
-    padding-top: 12px;
-  }
+/*Copyright Section of the Footer*/
+.footer-copyright 
+{
+  grid-column: 1 / -1;
+  text-align: center;
+  border-top: 1px solid #555;
+  padding-top: 20px;
+  padding-top: 12px;
+}
 
-  footer-copyright p
-  {
-    font-size: 0.85rem;
-    color: #bbb;
-    margin: 0;
-    letter-spacing: 0.5px;
-  }
+footer-copyright p
+{
+  font-size: 0.85rem;
+  color: #bbb;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
 
+input[type=text], select, textarea {
+  width: 250px; /* Full width */
+  padding: 12px; /* Some padding */ 
+  border: 1px solid #ccc; /* Gray border */
+  box-sizing: border-box; /* Make sure that padding and width stays in place */
+  margin-top: 6px; /* Add a top margin */
+  margin-bottom: 16px; /* Bottom margin */
+  resize: vertical /* Allow the user to vertically resize the textarea (not horizontally) */
+}
 
+input[type=email], select, textarea {
+  width: 250px; /* Full width */
+  padding: 12px; /* Some padding */ 
+  border: 1px solid #ccc; /* Gray border */
+  box-sizing: border-box; /* Make sure that padding and width stays in place */
+  margin-top: 6px; /* Add a top margin */
+  margin-bottom: 16px; /* Bottom margin */
+  resize: vertical /* Allow the user to vertically resize the textarea (not horizontally) */
+}
+
+input[type=number], select, textarea {
+  width: 500px; /* Full width */
+  padding: 12px; /* Some padding */ 
+  border: 1px solid #ccc; /* Gray border */
+  box-sizing: border-box; /* Make sure that padding and width stays in place */
+  margin-top: 6px; /* Add a top margin */
+  margin-bottom: 16px; /* Bottom margin */
+  resize: vertical /* Allow the user to vertically resize the textarea (not horizontally) */
+}
+
+/* Style the submit button with a specific background color etc */
+input[type=submit] {
+  background-color: darkgrey;
+  color: black;
+  padding: 12px 20px;
+  border: none;
+  cursor: pointer;
+  width: 500px;
+}
+
+input[type=submit]:hover {
+  background-color: grey;
+}
+
+.form-section {
+  padding-bottom: 30px;
+}
