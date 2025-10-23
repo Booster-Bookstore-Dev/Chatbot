@@ -8,6 +8,9 @@ services:
     mongo:
         ports: !override []
 
+    mongo-express:
+        ports: !override []
+
     chat-backend:
         ports: !override []
 
