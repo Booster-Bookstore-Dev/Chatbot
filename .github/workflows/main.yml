@@ -26,4 +26,8 @@ jobs:
                   DATAFRAME_NAME: ${{ vars.DATAFRAME_NAME }}
                   DATA_PATH: ${{ vars.DATA_PATH }}
                   CSV_PATH: ${{ vars.CSV_PATH }}
+                  MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+                  MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+                  MONGO_INITDB_DATABASE: ${{ secrets.MONGO_INITDB_DATABASE }}
+                  MONGO_DATA: ${{ vars.MONGO_DATA }}
               run: ./scripts/deploy.sh
