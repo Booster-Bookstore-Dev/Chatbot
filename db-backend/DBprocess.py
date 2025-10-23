@@ -301,4 +301,4 @@ def api_faq_upsert_defaults():
 # For local dev
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend_mongo:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend_mongo:app", host="0.0.0.0", port=5051, reload=True)

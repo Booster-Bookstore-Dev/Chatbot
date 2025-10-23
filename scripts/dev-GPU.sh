@@ -1,1 +1,0 @@
-docker compose -f ../compose.yaml -f ../nvidia-capability.yaml up --build
