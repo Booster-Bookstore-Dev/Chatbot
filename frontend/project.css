@@ -85,7 +85,7 @@ h3
 }
 
 /*Search Bar on the Navigation Bar*/
-.topnav input[type=text] 
+.topnav input[type=text]
 {
   float: center;
   padding: 14px 50px;
@@ -93,7 +93,7 @@ h3
   margin-right: 20px;
   font-size: 14px;
   text-align: center;
-} 
+}  /*Commented out to add a search tab
 
 /*Image Gallery on Home Page*/
 .scroll-container
