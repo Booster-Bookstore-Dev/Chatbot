@@ -1,1 +1,24 @@
-docker compose -f ../compose.yaml up --build
+#!/bin/bash
+set -e  # Exit immediately if any command fails
+
+# Navigate to the project root (one level up from scripts/)
+cd "$(dirname "$0")/.." 
+
+echo "🚀 Starting dev environment..."
+
+# Ensure Docker is running
+if ! docker info > /dev/null 2>&1; then
+  echo "❌ Docker is not running. Please start Docker and try again."
+  exit 1
+fi
+
+echo "🧹 Stopping and removing old containers..."
+docker compose -f compose.yaml down --remove-orphans
+
+echo "🧱 Building new images..."
+docker compose -f compose.yaml build
+
+echo "⬆️ Starting new containers..."
+docker compose -f compose.yaml up -d
+
+echo "✅ Deployment complete!"
