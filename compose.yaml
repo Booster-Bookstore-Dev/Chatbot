@@ -1,31 +1,32 @@
 services:
-    ollama:
-        # Ollama AI model, accessed via API only
-        image: ollama/ollama
-        restart: unless-stopped
-        ports:
-            - "11434:11434"
-        entrypoint:
-            [
-                "/bin/bash",
-                "-c",
-                "ollama serve & sleep 5 && ollama pull ${OLLAMA_MODEL} && wait",
-            ]
-        volumes:
-            - ollama-storage:/root/.ollama
-
     chat-backend:
         # Main backend service
         build: ./chat-backend
         ports:
-            - "5000:5000"
+            - "5050:5050"
+        environment:
+            - OLLAMA_MODEL=${OLLAMA_MODEL}
+            - INDEX_PATH=${INDEX_PATH}
+            - INDEX_NAME=${INDEX_NAME}
+            - DATAFRAME_NAME=${DATAFRAME_NAME}
+            - DATA_PATH=${DATA_PATH}
+            - CSV_PATH=${CSV_PATH}
+        volumes:
+            - chat-data:/data
+            - ${CSV_PATH}:/start_data/
 
     db-backend:
         # Database service
         build: ./db-backend
+        depends_on:
+            - mongo
+    mongo:
+        # MongoDB service
+        image: mongo:latest
         ports:
-            - "5432:5432"
-
+            - "27017:27017"
+        volumes:
+            - mongo-data:/data/db
     frontend:
         # Frontend UI
         build: ./frontend
@@ -33,4 +34,5 @@ services:
             - "3000:3000"
 
 volumes:
-    ollama-storage:
+    mongo-data:
+    chat-data:
