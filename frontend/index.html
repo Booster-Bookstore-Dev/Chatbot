@@ -8,33 +8,57 @@
 		<title>Booster Bookstore - Home</title>
 
     <link rel="stylesheet" href="project.css">
- 
+        
 </head>
+
 <body>
     <!--Top Section of the Page-->
     <div class="top-section">
-        <img src="images/boosterBookstoreLogo.png" width="200" height="200" align="center">
-        <h2>Where all Books are Ready for Launch</h2>
+        <div class="logo"></div>
 
         <!--Navigation Bar on Top of Page-->
-        <div class="topnav" align="center">
-            <a class="active" href="#home">Home</a>
-            <a href="./htmlFiles/shop.html">Shop</a>
-            <a href="./htmlFiles/about.html">About</a>
-            <a href="./htmlFiles/contactUs.html">Contact Us</a>
+        <div id="navbar-container">
+            <script src="navbar.js"></script>
         </div>
-
-        <!--Blank Space for Top Selling Books-->
-        <div class="blank-space">
-            <h2>Top Selling Books</h2>
-            <h2>Check out our top selling books of the month!</h2>
-        </div>
-
-
-        <!--Test to see if the blank space works-->
-        <h1>testing</h1>
-        <h1>testing</h1>
     </div>
+    
+    <h1>Where all Books are Ready for Launch</h1>
 
+    <div class="bottom-section">
+        <!--Horizontal Image Gallery for Best Selling Books -->
+        <h2>Top Titles Fueling Readers Everywhere</h2>
+        <div class = "scroll-container">
+            <img src="images/bookCollection/theBodyKeepsTheScore.jpg" alt="Book 1"/>
+            <img src="images/bookCollection/theLetThemTheory.jpg" alt="Book 2" />
+            <img src="images/bookCollection/alchemised.jpg" alt="Book 3" />
+            <img src="images/bookCollection/bigDumbEyes.jpg" alt="Book 4" />
+            <img src="images/bookCollection/neverFlinch.jpeg" alt="Book 5" />
+            <img src="images/bookCollection/wimpyKid-PartyPooper.webp" alt="Book 6" />
+        </div>
+
+        <div class=""></div>
+
+        <!--Left-Aligned Image with Quick Description of Bookstore-->
+        <div class="left-align">
+            <img src="images/HomePage/Picture2.jpg" alt="Bookstore Image" class="left-image" width="auto" height="400"/>
+
+            <div class="text-content">
+                <h2>Fuel Your Mind. Launch Your Imagination</h2>
+                <p>Whether its learning how to manage your finance, discover a world full of mysterious wonders, or just wanting to indulge on a humorous memoir,
+                Booster Bookstore is your one-stop shop for all your reading needs. We provide a wide variety of books from different genres to satisfy every reader's taste.
+                </p>
+                <a href="about.html" class="aboutUs-button">About Us</a>
+            </div>
+        </div>
+
+
+
+        <!--Footer of the html-->
+        <footer>
+            <div id="footer-container"></div>
+                <script src="footer.js"></script>
+        </footer>
+    </div>
+</div>
 </body>
 </html>

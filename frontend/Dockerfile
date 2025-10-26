@@ -1,5 +1,5 @@
-#Dummy dockerfile
-FROM nginx:latest
-
-# Do nothing
-CMD ["tail", "-f", "/dev/null"]
+FROM nginx:alpine
+RUN rm -rf /usr/share/nginx/html/*
+COPY . /usr/share/nginx/html/
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
