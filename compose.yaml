@@ -1,6 +1,11 @@
 services:
+    frontend:
+        build: ./frontend
+        ports:
+            - "3000:80"
+        depends_on:
+            - chat-backend
     chat-backend:
-        # Main backend service
         build: ./chat-backend
         ports:
             - "5050:5050"
@@ -14,24 +19,42 @@ services:
         volumes:
             - chat-data:/data
             - ${CSV_PATH}:/start_data/
+        depends_on:
+            - db-backend
 
     db-backend:
-        # Database service
         build: ./db-backend
+        ports:
+            - "6060:6060"
+        environment:
+            - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
         depends_on:
             - mongo
+
     mongo:
-        # MongoDB service
         image: mongo:latest
+        restart: always
         ports:
             - "27017:27017"
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+            MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
         volumes:
-            - mongo-data:/data/db
-    frontend:
-        # Frontend UI
-        build: ./frontend
+            - ${MONGO_DATA}:/data/db
+
+    mongo-express:
+        image: mongo-express:latest
+        restart: always
         ports:
-            - "3000:80"
+            - "8081:8081"
+        environment:
+            ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+            ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+            ME_CONFIG_MONGODB_SERVER: mongo
+            ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+        depends_on:
+            - mongo
 
 volumes:
     mongo-data:
