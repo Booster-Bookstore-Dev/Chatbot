@@ -14,7 +14,6 @@ load_dotenv('./.env')
 INDEX_PATH = os.getenv('INDEX_PATH', './data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
-DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', './start_data'))
 
 #MAKE THESE IN .env
 LLM_ENDPOINT = 'http://host.docker.internal:11434/api/chat'
@@ -27,38 +26,48 @@ booksDataFrame= None
 
 app = Flask(__name__)
 
-
-# Index functions
 def build_index():
-    # Builds the FAISS index and loads it into memory
     global index
     global booksDataFrame
-    print("Building FAISS index...")
-    #Reads data from csv and stores in a pandas Data Frame
-    booksDataFrame = pd.read_csv(DATA_PATH + '/data.csv', on_bad_lines='warn')
-    #Creates a combined list of the 
-    booksDataFrame['combined'] = booksDataFrame["title"].astype(str) + " by " + booksDataFrame["authors"].astype(str)
-    #outputs the dataframe to a pickle file
-    os.makedirs(INDEX_PATH, exist_ok=True)
-    booksDataFrame.to_pickle(INDEX_PATH + "/" + DATAFRAME_NAME)
-    #Encodes using the LLM specified above to create vectors for the combined list in the Data Frame
-    embeddings = model.encode(booksDataFrame['combined'].astype(str).tolist(), convert_to_numpy=True)
-    #Finds out how many dimensions there are in the matrix
-    dim = embeddings.shape[1]
-    #Creates an empty flat index with the number of dimensions in our embeddings
-    new_index = faiss.IndexFlatL2(dim)
-    #adds our embeddings (dim # of dimension vectors) to the index we just created
-    new_index.add(embeddings)
-    
-    #makes the index path if it doesnt exist 
-    
-    #uses the faiss library to write the index with index name to index path
-    faiss.write_index(new_index, INDEX_PATH + '/' + INDEX_NAME)
-    #sets global index to the new index we just created
-    index = new_index
-    print("FAISS index built and loaded.")
 
-#This loads the index from our index loacation if it exists.
+    print("Fetching book data from db-backend...")
+    try:
+        # Fetch JSON from the db-backend service
+        response = requests.get("http://db-backend:6060/books", timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        # Convert JSON list of dicts into a DataFrame
+        booksDataFrame = pd.DataFrame(data)
+        if booksDataFrame.empty:
+            raise ValueError("Received empty book data from db-backend.")
+
+        # Combine title and author text for vector embedding
+        booksDataFrame['combined'] = (
+            booksDataFrame["title"].astype(str) + " by " + booksDataFrame["authors"].astype(str)
+        )
+
+        # Save DataFrame for reuse
+        os.makedirs(INDEX_PATH, exist_ok=True)
+        booksDataFrame.to_pickle(os.path.join(INDEX_PATH, DATAFRAME_NAME))
+
+        # Encode with SentenceTransformer
+        embeddings = model.encode(booksDataFrame['combined'].tolist(), convert_to_numpy=True)
+        dim = embeddings.shape[1]
+
+        # Create and store FAISS index
+        new_index = faiss.IndexFlatL2(dim)
+        new_index.add(embeddings)
+        faiss.write_index(new_index, os.path.join(INDEX_PATH, INDEX_NAME))
+
+        index = new_index
+        print("FAISS index built from db-backend data and loaded successfully.")
+
+    except Exception as e:
+        print(f"❌ Error fetching or building index: {e}", flush=True)
+        sys.exit(1)
+
+#This loads the index from our index location if it exists.
 def load_index():
     global index
     index = faiss.read_index(INDEX_PATH + '/' + INDEX_NAME)
@@ -79,7 +88,7 @@ def faiss_search(query:str, k=5):
     query_vec=model.encode([query],convert_to_numpy=True)
     
     #Searches the index and returns the top 20 + k results
-    D, I = index.search(query_vec, k=20+k)
+    D, I = index.search(query_vec, k=20+int(k))
     results = []
     
     #This sets the minimum results to 2 distinct results 
@@ -88,13 +97,18 @@ def faiss_search(query:str, k=5):
         row = {
             "title": row["title"],
             "authors": row["authors"],
-            "average_rating": row["average_rating"]
+            "genres": row["genres"],
+            "isbn": row["isbn"],
+            "release_date": row["release_date"],
+            "price": row["price"],
+            "stock_count": row["stock_count"]
+            
         }
         print(row, flush=True)
         #only adds distinct results (there are some repeats in the test dataset)
         if row not in results:
             results.append(row)
-        if len(results) >= 2 and len(results) >=k:
+        if len(results) >= 2 and len(results) >= int(k):
             break
     return results
 
@@ -124,7 +138,7 @@ def call_llm(messages, tools, stream):
                     # Append tool output to the chat history
                     tool_output= set({})
                     for result in tool_result:
-                        tool_output.add(result["title"] +" by " +result["authors"] +" with a rating of " + str(result["average_rating"].item()))
+                        tool_output.add(result["title"] +" by " +result["authors"] + " (Genres: " + result["genres"] + ", ISBN: " + str(result["isbn"])+ ", Release Date: " + str(result["release_date"])+ ", Price: $" + str(result["price"])+ ", Stock Count: " + str(result["stock_count"])+")")
                     print(tool_output)
                     messages.append({
                         "role": "tool",
