@@ -13,7 +13,8 @@ if ! docker info > /dev/null 2>&1; then
 fi
 
 echo "🧹 Stopping and removing old containers..."
-docker compose -f compose.yaml down --remove-orphans
+
+docker compose -f compose.yaml -f deploy.yaml down --remove-orphans
 
 echo "🧱 Building new images..."
 docker compose -f compose.yaml build
