@@ -1,44 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booster Bookstore - Search</title>
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0" />
+		<title>Booster Bookstore - Search</title>
+		<link
+			rel="stylesheet"
+			href="project.css" />
+	</head>
 
-    <link rel="stylesheet" href="project.css">
-        
-</head>
+	<body>
+		<!--Top Section of the Page-->
+		<div class="top-section">
+			<div class="logo"></div>
 
-<body>
-    <!--Top Section of the Page-->
-    <div class="top-section">
-        <div class="logo"></div>
+			<!--Navigation Bar on Top of Page-->
+			<div id="navbar-container">
+				<script src="navbar.js"></script>
+			</div>
+		</div>
 
-        <!--Navigation Bar on Top of Page-->
-        <div id="navbar-container">
-            <script src="navbar.js"></script>
-        </div>
+		<div class="bottom-section">
+			<h1>Search</h1>
 
-    </div>
+			<div class="search-container">
+				<input
+					id="queryInput"
+					type="text"
+					placeholder="Search for books, authors, genres..."
+					class="search-bar" />
+				<button id="sendBtn">Search</button>
+			</div>
 
-    <div class="bottom-section">
-        <br></br>
-        <h1>Search</h1>
-        <div class="search-bar">
-            <input type="text" placeholder="Search for books, authors, genres..." class="search-bar">
-        </div>
+			<p>
+				Our search engine is powered by our personalized AI Chatbot.
+				Whether you have questions about specific books, need
+				recommendations based on your interests, or want to know more
+				about our services, our AI assistant is here to help you
+				navigate through our extensive collection and find exactly what
+				you're looking for. Simply type in your query, and let our AI
+				guide you to your next great read!
+			</p>
 
-        <p>Our search engine is powered by our personalized AI Chatbot. Whether you have questions
-        about specific books, need recommendations based on your interests, or want to know more about our services,
-        our AI assistant is here to help you navigate through our extensive collection and find exactly what you're looking for. 
-        Simply type in your query, and let our AI guide you to your next great read! </p>
-        </p>
-    </div>
+			<div
+				id="chat-box"
+				class="chat-box"></div>
+		</div>
 
-    <!--Footer of the html-->
-    <footer>
-        <div id="footer-container"></div>
-            <script src="footer.js"></script>
-    </footer>
-</body>
+		<!--Footer-->
+		<footer>
+			<div id="footer-container"></div>
+			<script src="footer.js"></script>
+		</footer>
+
+		<script>
+			const API_URL = "/api/chat"; // Flask backend endpoint
+
+			const input = document.getElementById("queryInput");
+			const sendBtn = document.getElementById("sendBtn");
+			const chatBox = document.getElementById("chat-box");
+
+			async function sendMessage() {
+				const query = input.value.trim();
+				if (!query) return;
+
+				appendMessage("user", query);
+				input.value = "";
+
+				try {
+					const res = await fetch("/api/chat", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ message: query }),
+					});
+
+					const data = await res.json();
+					console.log("Response:", data);
+
+					// If backend returns a list of messages, get the most recent one
+					let reply = "";
+					if (Array.isArray(data)) {
+						const lastMsg = data[data.length - 1];
+						reply =
+							lastMsg?.content || "No response from assistant.";
+					} else if (data?.message) {
+						reply = data.message.content || JSON.stringify(data);
+					} else if (typeof data === "string") {
+						reply = data;
+					}
+
+					appendMessage("assistant", reply);
+				} catch (err) {
+					console.error(err);
+					appendMessage("assistant", "Error connecting to server.");
+				}
+			}
+
+			function appendMessage(role, text) {
+				const msg = document.createElement("div");
+				msg.className = role === "user" ? "user-msg" : "assistant-msg";
+				msg.textContent = text;
+				chatBox.appendChild(msg);
+				chatBox.scrollTop = chatBox.scrollHeight;
+			}
+
+			sendBtn.addEventListener("click", sendMessage);
+			input.addEventListener("keypress", (e) => {
+				if (e.key === "Enter") sendMessage();
+			});
+		</script>
+
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				margin: 0;
+				padding: 0;
+				background-color: #343434;
+			}
+			.bottom-section {
+				padding: 2em;
+				max-width: 800px;
+				margin: auto;
+			}
+			.search-container {
+				display: flex;
+				gap: 10px;
+				margin-bottom: 1em;
+			}
+			.search-bar {
+				flex: 1;
+				padding: 0.5em;
+				border-radius: 8px;
+				border: 1px solid #ccc;
+			}
+			#sendBtn {
+				padding: 0.5em 1em;
+				border: none;
+				border-radius: 8px;
+				background-color: #007bff;
+				color: white;
+				cursor: pointer;
+			}
+			#sendBtn:hover {
+				background-color: #0056b3;
+			}
+			.chat-box {
+				margin-top: 1.5em;
+				background: #0e0e0e;
+				border-radius: 10px;
+				border: 1px solid #ddd;
+				padding: 1em;
+				height: 300px;
+				overflow-y: auto;
+			}
+			.user-msg {
+				text-align: right;
+				margin: 5px;
+				padding: 8px 12px;
+				color: black;
+				background: #e1ffc7;
+				border-radius: 10px;
+				display: inline-block;
+			}
+			.assistant-msg {
+				text-align: left;
+				margin: 5px;
+				padding: 8px 12px;
+				background: #343434;
+				border-radius: 10px;
+				display: inline-block;
+			}
+		</style>
+	</body>
 </html>
