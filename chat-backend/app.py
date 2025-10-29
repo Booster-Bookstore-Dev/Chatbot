@@ -115,50 +115,81 @@ def faiss_search(query:str, k=5):
 
 #LLM functions
 def call_llm(messages, tools, stream):
-    llm_response = requests.post(LLM_ENDPOINT, headers= { "Content-Type": "application/json" },
-			json= {
-				"model": OLLAMA_MODEL,
+    try:
+        llm_response = requests.post(
+            LLM_ENDPOINT,
+            headers={"Content-Type": "application/json"},
+            json={
+                "model": OLLAMA_MODEL,
                 "messages": messages,
                 "tools": tools,
                 "stream": stream,
-                })
-    data = llm_response.json()
-    print(data, flush=True)
-    assistant_msg = data["message"]
+            },
+        )
+        llm_response.raise_for_status()
+        data = llm_response.json()
+    except Exception as e:
+        print(f"Error contacting LLM: {e}", flush=True)
+        return messages
+
+    print(json.dumps(data, indent=4), flush=True)
+
+    assistant_msg = data.get("message", {})
     messages.append(assistant_msg)
-    
+
+    # --- Handle tool calls ---
     if "tool_calls" in assistant_msg:
-        print("Book_Search called", flush=True)
-        print(assistant_msg, flush=True)
         for call in assistant_msg["tool_calls"]:
-            if call["function"]["name"] == "book_search":
-                if call["function"]["arguments"]["query"]:
-                    args = call["function"]["arguments"]
-                    tool_result = faiss_search(args["query"], args["numberOfBooks"])
-                    # Append tool output to the chat history
-                    tool_output= set({})
-                    for result in tool_result:
-                        tool_output.add(result["title"] +" by " +result["authors"] + " (Genres: " + result["genres"] + ", ISBN: " + str(result["isbn"])+ ", Release Date: " + str(result["release_date"])+ ", Price: $" + str(result["price"])+ ", Stock Count: " + str(result["stock_count"])+")")
-                    print(tool_output)
+            func_name = call["function"]["name"]
+            args = call["function"].get("arguments", {})
+
+            # --- Book search tool ---
+            if func_name == "book_search":
+                query = args.get("query")
+                num_books = args.get("numberOfBooks", 5)
+
+                if query:
+                    tool_result = faiss_search(query, num_books)
+                    print("Book_Search called:", query, flush=True)
+
+                    # Format output for readability
+                    tool_output = [
+                        f"{r['title']} by {r['authors']} "
+                        f"(Genres: {r['genres']}, ISBN: {r['isbn']}, "
+                        f"Release Date: {r['release_date']}, "
+                        f"Price: ${r['price']}, Stock: {r['stock_count']})"
+                        for r in tool_result
+                    ]
+                    print("Results:", json.dumps(tool_output, indent=2), flush=True)
+
+                    # Append tool result
                     messages.append({
                         "role": "tool",
-                        "content": str(tool_result),
+                        "content": "\n".join(tool_output),
                         "tool_name": "book_search"
                     })
-                    return call_llm(messages,[tools[1]],stream)
-            if call["function"]["arguments"]["reply"]:
-                messages.append({"role": "assistant", "content" : call["function"]["arguments"]["reply"]})
-                print(json.dumps(messages,indent=4), flush=True)
+
+                    # Recurse with the reply tool
+                    return call_llm(messages, [tools[1]], stream)
+
+            # --- Reply tool ---
+            elif func_name == "reply":
+                reply_text = args.get("reply", "")
+                messages.append({"role": "assistant", "content": reply_text})
+                print("Reply added:", reply_text, flush=True)
                 return messages
+
+    # --- No tool calls; standard assistant reply ---
     else:
-        print(assistant_msg, flush=True)
-        reply = assistant_msg["content"]
+        reply = assistant_msg.get("content", "")
         if "</think>" in reply:
-            end_index = reply.index("</think>")
-            reply = reply[end_index+9:]
-            print(reply, flush=True)
-            #I want to return messages
-        return reply
+            # Remove hidden reasoning if present
+            reply = reply.split("</think>", 1)[-1].strip()
+
+        messages.append({"role": "assistant", "content": reply})
+        print("Final reply:", reply, flush=True)
+        return messages
+
 
 
 #Routes
