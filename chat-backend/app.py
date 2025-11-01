@@ -100,7 +100,8 @@ def faiss_search(query:str, k=5):
             "genres": row["genres"],
             "isbn": row["isbn"],
             "release_date": row["release_date"],
-            "price": row["price"],
+            "std_price": row["std_price"],
+            "sale_price": row["sale_price"],
             "stock_count": row["stock_count"]
             
         }
@@ -157,7 +158,7 @@ def call_llm(messages, tools, stream):
                         f"{r['title']} by {r['authors']} "
                         f"(Genres: {r['genres']}, ISBN: {r['isbn']}, "
                         f"Release Date: {r['release_date']}, "
-                        f"Price: ${r['price']}, Stock: {r['stock_count']})"
+                        f"Standard Price: ${r['std_price']}, Sale Price: ${r['sale_price']}, Stock: {r['stock_count']})"
                         for r in tool_result
                     ]
                     print("Results:", json.dumps(tool_output, indent=2), flush=True)
@@ -182,9 +183,9 @@ def call_llm(messages, tools, stream):
     # --- No tool calls; standard assistant reply ---
     else:
         reply = assistant_msg.get("content", "")
-        if "</think>" in reply:
+        if "{" in reply:
             # Remove hidden reasoning if present
-            reply = reply.split("</think>", 1)[-1].strip()
+            reply = reply.split("}", 1)[-1].strip()
 
         messages.append({"role": "assistant", "content": reply})
         print("Final reply:", reply, flush=True)
@@ -274,7 +275,7 @@ def llm_chat():
                             "description": "Reply to send to the user."
                         }
                     },
-                    "required": ["query"]
+                    "required": ["reply"]
                 }
             }
         }
