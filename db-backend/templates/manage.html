@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Manage Books</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				margin: 40px;
+				background-color: #f5f5f5;
+			}
+			h1 {
+				text-align: center;
+			}
+			.drop-zone {
+				border: 3px dashed #bbb;
+				border-radius: 10px;
+				padding: 40px;
+				text-align: center;
+				background: white;
+				transition: 0.3s;
+			}
+			.drop-zone.dragover {
+				border-color: #007bff;
+				background-color: #e9f5ff;
+			}
+			.controls {
+				margin-top: 20px;
+				text-align: center;
+			}
+			button {
+				padding: 10px 16px;
+				border: none;
+				border-radius: 6px;
+				cursor: pointer;
+				margin: 0 10px;
+			}
+			.upload-btn {
+				background-color: #007bff;
+				color: white;
+			}
+			.rebuild-btn {
+				background-color: #28a745;
+				color: white;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>📚 Manage Books Database</h1>
+
+		<div
+			class="drop-zone"
+			id="drop-zone">
+			<p>Drag & drop a CSV file here, or click to select.</p>
+			<input
+				type="file"
+				id="file-input"
+				accept=".csv"
+				hidden />
+		</div>
+
+		<div class="controls">
+			<label
+				><input
+					type="radio"
+					name="mode"
+					value="append"
+					checked />
+				Append</label
+			>
+			<label
+				><input
+					type="radio"
+					name="mode"
+					value="replace" />
+				Replace</label
+			>
+			<br /><br />
+			<button
+				class="upload-btn"
+				id="upload-btn">
+				Upload CSV
+			</button>
+			<button
+				class="rebuild-btn"
+				id="rebuild-btn">
+				Rebuild Index
+			</button>
+		</div>
+
+		<p
+			id="status"
+			style="text-align: center; margin-top: 20px"></p>
+
+		<script>
+			const dropZone = document.getElementById("drop-zone");
+			const fileInput = document.getElementById("file-input");
+			let selectedFile = null;
+
+			dropZone.addEventListener("click", () => fileInput.click());
+			fileInput.addEventListener("change", (e) => {
+				selectedFile = e.target.files[0];
+				dropZone.querySelector("p").textContent = selectedFile
+					? `Selected: ${selectedFile.name}`
+					: "No file selected";
+			});
+
+			dropZone.addEventListener("dragover", (e) => {
+				e.preventDefault();
+				dropZone.classList.add("dragover");
+			});
+
+			dropZone.addEventListener("dragleave", () =>
+				dropZone.classList.remove("dragover")
+			);
+
+			dropZone.addEventListener("drop", (e) => {
+				e.preventDefault();
+				dropZone.classList.remove("dragover");
+				selectedFile = e.dataTransfer.files[0];
+				dropZone.querySelector(
+					"p"
+				).textContent = `Selected: ${selectedFile.name}`;
+			});
+
+			document
+				.getElementById("upload-btn")
+				.addEventListener("click", async () => {
+					if (!selectedFile) {
+						alert("Please select a file first.");
+						return;
+					}
+
+					const mode = document.querySelector(
+						'input[name="mode"]:checked'
+					).value;
+					const formData = new FormData();
+					formData.append("file", selectedFile);
+					formData.append("mode", mode);
+
+					document.getElementById("status").textContent =
+						"Uploading...";
+
+					const res = await fetch("/manage/upload_books", {
+						method: "POST",
+						body: formData,
+					});
+					const data = await res.json();
+					document.getElementById("status").textContent =
+						data.message || data.error;
+				});
+
+			document
+				.getElementById("rebuild-btn")
+				.addEventListener("click", async () => {
+					document.getElementById("status").textContent =
+						"Triggering rebuild...";
+					const res = await fetch("/manage/rebuild_index", {
+						method: "POST",
+					});
+					const data = await res.json();
+					document.getElementById("status").textContent =
+						data.message || data.error;
+				});
+		</script>
+	</body>
+</html>

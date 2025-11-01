@@ -1,8 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient, errors
 import os
 import csv
 import io
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -24,7 +25,7 @@ except errors.ConnectionFailure as e:
     print("❌ MongoDB connection failed:", e)
     client = None
 
-# Initialize DB and collection only if connection works
+# Initialize DB and collection
 if client:
     db = client.get_database("mydb")
     collection = db["books"]
@@ -32,9 +33,11 @@ else:
     db = None
     collection = None
 
+
 @app.route("/")
 def home():
     return {"message": "Flask MongoDB API running!"}
+
 
 @app.route("/books", methods=["GET"])
 def get_books():
@@ -42,6 +45,7 @@ def get_books():
         return jsonify({"error": "Database not connected"}), 500
     books = list(collection.find({}, {"_id": 0}))
     return jsonify(books)
+
 
 @app.route("/books", methods=["POST"])
 def add_book():
@@ -53,24 +57,26 @@ def add_book():
     collection.insert_one(data)
     return jsonify({"message": "Book added successfully!"}), 201
 
-@app.route("/upload_csv", methods=["POST"])
-def upload_csv():
+
+@app.route("/manage")
+def manage_page():
+    return render_template("manage.html")
+
+@app.route("/manage/upload_books", methods=["POST"])  # Add /manage prefix
+def upload_books():
     """
-    Upload a CSV file to bulk insert records into MongoDB.
-    Example: curl -X POST -F "file=@books.csv" http://localhost:6060/upload_csv
+    Upload CSV with option to replace or append.
     """
     if collection is None:
         return jsonify({"error": "Database not connected"}), 500
 
     if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
+        return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+    mode = request.form.get("mode", "append")
 
     try:
-        # Read CSV content
         stream = io.StringIO(file.stream.read().decode("utf-8"))
         csv_reader = csv.DictReader(stream)
         rows = list(csv_reader)
@@ -78,14 +84,32 @@ def upload_csv():
         if not rows:
             return jsonify({"error": "CSV file is empty"}), 400
 
-        # Insert into MongoDB
+        if mode == "replace":
+            collection.delete_many({})
+            print("⚠️ Replaced existing books with new data.")
+
         result = collection.insert_many(rows)
         return jsonify({
-            "message": f"Successfully inserted {len(result.inserted_ids)} records!"
+            "message": f"Successfully inserted {len(result.inserted_ids)} records! (Mode: {mode})"
         }), 201
 
     except Exception as e:
         print("❌ CSV upload error:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/manage/rebuild_index", methods=["POST"])  # Add /manage prefix
+def rebuild_index():
+    """
+    Send a POST request to chat-backend:5050/rebuild_index
+    """
+    try:
+        response = requests.post("http://chat-backend:5050/rebuild_index", timeout=10)
+        if response.status_code == 200:
+            return jsonify({"message": "Rebuild triggered successfully!"}), 200
+        else:
+            return jsonify({"error": f"Rebuild failed: {response.text}"}), 500
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
