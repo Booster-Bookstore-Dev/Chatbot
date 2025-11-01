@@ -14,6 +14,7 @@ load_dotenv('./.env')
 INDEX_PATH = os.getenv('INDEX_PATH', './data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
+FAQ_PATH = os.getenv('FAQ_PATH', './FAQ.txt')
 
 #MAKE THESE IN .env
 LLM_ENDPOINT = 'http://host.docker.internal:11434/api/chat'
@@ -22,9 +23,23 @@ OLLAMA_MODEL = os.getenv('OLLAMA_MODEL',"qwen3:1.7b")
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 index = None
-booksDataFrame= None
+booksDataFrame = None
+faq_content = ""
 
 app = Flask(__name__)
+
+def load_faq():
+    global faq_content
+    try:
+        with open(FAQ_PATH, 'r', encoding='utf-8') as f:
+            faq_content = f.read()
+        print("FAQ loaded successfully.")
+    except FileNotFoundError:
+        print(f"Warning: FAQ file not found at {FAQ_PATH}")
+        faq_content = ""
+    except Exception as e:
+        print(f"Error loading FAQ: {e}")
+        faq_content = ""
 
 def build_index():
     global index
@@ -181,16 +196,20 @@ def call_llm(messages, tools, stream):
                 return messages
 
     # --- No tool calls; standard assistant reply ---
+    # --- No tool calls; standard assistant reply ---
     else:
         reply = assistant_msg.get("content", "")
         if "{" in reply:
             # Remove hidden reasoning if present
             reply = reply.split("}", 1)[-1].strip()
+        
+        # Remove [TOOL_CALLS] prefix if present
+        if reply.startswith("[TOOL_CALLS]"):
+            reply = reply.replace("[TOOL_CALLS]", "", 1).strip()
 
         messages.append({"role": "assistant", "content": reply})
         print("Final reply:", reply, flush=True)
         return messages
-
 
 
 #Routes
@@ -213,24 +232,36 @@ def search_api():
 
 @app.route("/chat", methods=["POST"])
 def llm_chat():
+    global faq_content
+    
     req_data = request.json or {}
     user_message = req_data.get("message", "")
     history = req_data.get("history", False)
     if not user_message:
         return jsonify({"error": "No message provided"})
     if not history:
+        system_prompt = f"""/no_think 
+You are a helpful bookstore assistant for Booster Bookstore. 
+
+FREQUENTLY ASKED QUESTIONS:
+{faq_content}
+
+INSTRUCTIONS:
+- Use the FAQ information above to answer common questions about the bookstore, shipping, payments, returns, and customer support.
+- Use the `book_search` tool only when the user explicitly requests books, or when you must fetch book data. 
+- Use the `reply` tool to send your response to the user.
+- Return exactly the number of books the user asks for, no more. 
+- Keep replies concise and direct. 
+- When asked for similar books, exclude any with the same title as the reference. 
+- Do not explain your reasoning or mention tools in responses.
+- If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other).
+- For questions about orders, shipping, returns, payments, or general bookstore information, refer to the FAQ above.
+- You can use Markdown formatting in your replies to make them more readable (bold, italic, lists, links, etc.)."""
+
         messages = [
             {
                 "role": "system",
-                "content": """/no_think 
-                    You are a bookstore assistant. 
-                    - Use the `book_search` tool only when the user explicitly requests books, or when you must fetch book data. 
-                    - Use the `reply` tool to send your response to the user.
-                    - Return exactly the number of books the user asks for, no more. 
-                    - Keep replies concise and direct. 
-                    - When asked for similar books, exclude any with the same title as the reference. 
-                    - Do not explain your reasoning or mention tools in responses.
-                    - If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other)."""
+                "content": system_prompt
             },
             {
                 'role': 'user',
@@ -282,12 +313,14 @@ def llm_chat():
     ]
     
     return jsonify(call_llm(messages, tools, False))
-    # updated_messages = call_llm(messages, tools, False)
     
     
     
     
 if __name__ == "__main__":
+    # Load FAQ
+    load_faq()
+    
     # Load existing index if it exists
     if os.path.exists(INDEX_PATH + '/' + INDEX_NAME) and os.path.exists(INDEX_PATH + "/" + DATAFRAME_NAME):
         load_index()

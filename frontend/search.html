@@ -9,6 +9,10 @@
 		<link
 			rel="stylesheet"
 			href="project.css" />
+		<!-- Marked.js for Markdown rendering -->
+		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+		<!-- DOMPurify for HTML sanitization -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 	</head>
 
 	<body>
@@ -57,6 +61,7 @@
 
 		<script>
 			const API_URL = "/api/chat"; // Flask backend endpoint
+			let conversationHistory = []; // Store conversation for context
 
 			const input = document.getElementById("queryInput");
 			const sendBtn = document.getElementById("sendBtn");
@@ -73,7 +78,13 @@
 					const res = await fetch("/api/chat", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ message: query }),
+						body: JSON.stringify({
+							message: query,
+							history:
+								conversationHistory.length > 0
+									? conversationHistory
+									: false,
+						}),
 					});
 
 					const data = await res.json();
@@ -85,6 +96,13 @@
 						const lastMsg = data[data.length - 1];
 						reply =
 							lastMsg?.content || "No response from assistant.";
+
+						// Update conversation history
+						conversationHistory = data;
+					} else if (data?.reply) {
+						// New format with separate reply field
+						reply = data.reply;
+						conversationHistory = data.history || [];
 					} else if (data?.message) {
 						reply = data.message.content || JSON.stringify(data);
 					} else if (typeof data === "string") {
@@ -101,7 +119,38 @@
 			function appendMessage(role, text) {
 				const msg = document.createElement("div");
 				msg.className = role === "user" ? "user-msg" : "assistant-msg";
-				msg.textContent = text;
+
+				if (role === "user") {
+					// User messages - plain text only (no HTML)
+					msg.textContent = text;
+				} else {
+					// Assistant messages - convert Markdown to HTML, then sanitize
+					const htmlContent = marked.parse(text);
+					msg.innerHTML = DOMPurify.sanitize(htmlContent, {
+						ALLOWED_TAGS: [
+							"strong",
+							"em",
+							"br",
+							"ul",
+							"ol",
+							"li",
+							"a",
+							"p",
+							"span",
+							"h1",
+							"h2",
+							"h3",
+							"h4",
+							"h5",
+							"h6",
+							"code",
+							"pre",
+							"blockquote",
+						],
+						ALLOWED_ATTR: ["href", "target", "rel", "class"],
+					});
+				}
+
 				chatBox.appendChild(msg);
 				chatBox.scrollTop = chatBox.scrollHeight;
 			}
@@ -163,6 +212,9 @@
 				background: #e1ffc7;
 				border-radius: 10px;
 				display: inline-block;
+				max-width: 70%;
+				float: right;
+				clear: both;
 			}
 			.assistant-msg {
 				text-align: left;
@@ -171,6 +223,72 @@
 				background: #343434;
 				border-radius: 10px;
 				display: inline-block;
+				max-width: 70%;
+				float: left;
+				clear: both;
+			}
+
+			/* Styles for Markdown-rendered elements in assistant messages */
+			.assistant-msg strong {
+				color: #4da6ff;
+				font-weight: bold;
+			}
+
+			.assistant-msg em {
+				font-style: italic;
+				color: #b3d9ff;
+			}
+
+			.assistant-msg ul,
+			.assistant-msg ol {
+				margin: 10px 0;
+				padding-left: 20px;
+			}
+
+			.assistant-msg li {
+				margin: 5px 0;
+			}
+
+			.assistant-msg a {
+				color: #66b3ff;
+				text-decoration: none;
+			}
+
+			.assistant-msg a:hover {
+				text-decoration: underline;
+			}
+
+			.assistant-msg p {
+				margin: 8px 0;
+			}
+
+			.assistant-msg h1,
+			.assistant-msg h2,
+			.assistant-msg h3 {
+				color: #4da6ff;
+				margin: 10px 0 5px 0;
+			}
+
+			.assistant-msg code {
+				background-color: #1a1a1a;
+				padding: 2px 6px;
+				border-radius: 3px;
+				font-family: monospace;
+				color: #e1ffc7;
+			}
+
+			.assistant-msg pre {
+				background-color: #1a1a1a;
+				padding: 10px;
+				border-radius: 5px;
+				overflow-x: auto;
+			}
+
+			.assistant-msg blockquote {
+				border-left: 3px solid #4da6ff;
+				padding-left: 10px;
+				margin: 10px 0;
+				color: #b3d9ff;
 			}
 		</style>
 	</body>
