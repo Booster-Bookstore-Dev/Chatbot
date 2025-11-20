@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0" />
+		<title>Booster Bookstore - Search</title>
+		<link
+			rel="stylesheet"
+			href="project.css" />
+		<!-- Marked.js for Markdown rendering -->
+		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+		<!-- DOMPurify for HTML sanitization -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+	</head>
+
+	<body>
+		<!--Top Section of the Page-->
+		<div class="top-section">
+			<div class="logo"></div>
+
+			<!--Navigation Bar on Top of Page-->
+			<div id="navbar-container">
+				<script src="navbar.js"></script>
+			</div>
+		</div>
+
+		<div class="bottom-section">
+			<h1>Search</h1>
+
+			<div class="search-container">
+				<input
+					id="queryInput"
+					type="text"
+					placeholder="Search for books, authors, genres..."
+					class="search-bar" />
+				<button id="sendBtn">Search</button>
+			</div>
+
+			<p>
+				Our search engine is powered by our personalized AI Chatbot.
+				Whether you have questions about specific books, need
+				recommendations based on your interests, or want to know more
+				about our services, our AI assistant is here to help you
+				navigate through our extensive collection and find exactly what
+				you're looking for. Simply type in your query, and let our AI
+				guide you to your next great read!
+			</p>
+
+			<div
+				id="chat-box"
+				class="chat-box"></div>
+		</div>
+
+		<!--Footer-->
+		<footer>
+			<div id="footer-container"></div>
+			<script src="footer.js"></script>
+		</footer>
+
+		<script>
+			const API_URL = "/api/chat"; // Flask backend endpoint
+			let conversationHistory = []; // Store conversation for context
+
+			const input = document.getElementById("queryInput");
+			const sendBtn = document.getElementById("sendBtn");
+			const chatBox = document.getElementById("chat-box");
+
+			async function sendMessage() {
+				const query = input.value.trim();
+				if (!query) return;
+
+				appendMessage("user", query);
+				input.value = "";
+
+				try {
+					const res = await fetch("/api/chat", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							message: query,
+							history:
+								conversationHistory.length > 0
+									? conversationHistory
+									: false,
+						}),
+					});
+
+					const data = await res.json();
+					console.log("Response:", data);
+
+					// If backend returns a list of messages, get the most recent one
+					let reply = "";
+					if (Array.isArray(data)) {
+						const lastMsg = data[data.length - 1];
+						reply =
+							lastMsg?.content || "No response from assistant.";
+
+						// Update conversation history
+						conversationHistory = data;
+					} else if (data?.reply) {
+						// New format with separate reply field
+						reply = data.reply;
+						conversationHistory = data.history || [];
+					} else if (data?.message) {
+						reply = data.message.content || JSON.stringify(data);
+					} else if (typeof data === "string") {
+						reply = data;
+					}
+
+					appendMessage("assistant", reply);
+				} catch (err) {
+					console.error(err);
+					appendMessage("assistant", "Error connecting to server.");
+				}
+			}
+
+			function appendMessage(role, text) {
+				const msg = document.createElement("div");
+				msg.className = role === "user" ? "user-msg" : "assistant-msg";
+
+				if (role === "user") {
+					// User messages - plain text only (no HTML)
+					msg.textContent = text;
+				} else {
+					// Assistant messages - convert Markdown to HTML, then sanitize
+					const htmlContent = marked.parse(text);
+					msg.innerHTML = DOMPurify.sanitize(htmlContent, {
+						ALLOWED_TAGS: [
+							"strong",
+							"em",
+							"br",
+							"ul",
+							"ol",
+							"li",
+							"a",
+							"p",
+							"span",
+							"h1",
+							"h2",
+							"h3",
+							"h4",
+							"h5",
+							"h6",
+							"code",
+							"pre",
+							"blockquote",
+						],
+						ALLOWED_ATTR: ["href", "target", "rel", "class"],
+					});
+				}
+
+				chatBox.appendChild(msg);
+				chatBox.scrollTop = chatBox.scrollHeight;
+			}
+
+			sendBtn.addEventListener("click", sendMessage);
+			input.addEventListener("keypress", (e) => {
+				if (e.key === "Enter") sendMessage();
+			});
+		</script>
+
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				margin: 0;
+				padding: 0;
+				background-color: #343434;
+			}
+			.bottom-section {
+				padding: 2em;
+				max-width: 800px;
+				margin: auto;
+			}
+			.search-container {
+				display: flex;
+				gap: 10px;
+				margin-bottom: 1em;
+			}
+			.search-bar {
+				flex: 1;
+				padding: 0.5em;
+				border-radius: 8px;
+				border: 1px solid #ccc;
+			}
+			#sendBtn {
+				padding: 0.5em 1em;
+				border: none;
+				border-radius: 8px;
+				background-color: #007bff;
+				color: white;
+				cursor: pointer;
+			}
+			#sendBtn:hover {
+				background-color: #0056b3;
+			}
+			.chat-box {
+				margin-top: 1.5em;
+				background: #0e0e0e;
+				border-radius: 10px;
+				border: 1px solid #ddd;
+				padding: 1em;
+				height: 300px;
+				overflow-y: auto;
+			}
+			.user-msg {
+				text-align: right;
+				margin: 5px;
+				padding: 8px 12px;
+				color: black;
+				background: #e1ffc7;
+				border-radius: 10px;
+				display: inline-block;
+				max-width: 70%;
+				float: right;
+				clear: both;
+			}
+			.assistant-msg {
+				text-align: left;
+				margin: 5px;
+				padding: 8px 12px;
+				background: #343434;
+				border-radius: 10px;
+				display: inline-block;
+				max-width: 70%;
+				float: left;
+				clear: both;
+			}
+
+			/* Styles for Markdown-rendered elements in assistant messages */
+			.assistant-msg strong {
+				color: #4da6ff;
+				font-weight: bold;
+			}
+
+			.assistant-msg em {
+				font-style: italic;
+				color: #b3d9ff;
+			}
+
+			.assistant-msg ul,
+			.assistant-msg ol {
+				margin: 10px 0;
+				padding-left: 20px;
+			}
+
+			.assistant-msg li {
+				margin: 5px 0;
+			}
+
+			.assistant-msg a {
+				color: #66b3ff;
+				text-decoration: none;
+			}
+
+			.assistant-msg a:hover {
+				text-decoration: underline;
+			}
+
+			.assistant-msg p {
+				margin: 8px 0;
+			}
+
+			.assistant-msg h1,
+			.assistant-msg h2,
+			.assistant-msg h3 {
+				color: #4da6ff;
+				margin: 10px 0 5px 0;
+			}
+
+			.assistant-msg code {
+				background-color: #1a1a1a;
+				padding: 2px 6px;
+				border-radius: 3px;
+				font-family: monospace;
+				color: #e1ffc7;
+			}
+
+			.assistant-msg pre {
+				background-color: #1a1a1a;
+				padding: 10px;
+				border-radius: 5px;
+				overflow-x: auto;
+			}
+
+			.assistant-msg blockquote {
+				border-left: 3px solid #4da6ff;
+				padding-left: 10px;
+				margin: 10px 0;
+				color: #b3d9ff;
+			}
+		</style>
+	</body>
+</html>

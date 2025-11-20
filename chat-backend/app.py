@@ -14,7 +14,7 @@ load_dotenv('./.env')
 INDEX_PATH = os.getenv('INDEX_PATH', './data') 
 INDEX_NAME = os.getenv('INDEX_NAME', 'faiss.index')
 DATAFRAME_NAME = os.getenv('DATAFRAME_NAME', 'books.pkl')
-DATA_PATH = os.path.abspath(os.getenv('DATA_PATH', './start_data'))
+FAQ_PATH = os.getenv('FAQ_PATH', './FAQ.txt')
 
 #MAKE THESE IN .env
 LLM_ENDPOINT = 'http://host.docker.internal:11434/api/chat'
@@ -23,42 +23,66 @@ OLLAMA_MODEL = os.getenv('OLLAMA_MODEL',"qwen3:1.7b")
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 index = None
-booksDataFrame= None
+booksDataFrame = None
+faq_content = ""
 
 app = Flask(__name__)
 
+def load_faq():
+    global faq_content
+    try:
+        with open(FAQ_PATH, 'r', encoding='utf-8') as f:
+            faq_content = f.read()
+        print("FAQ loaded successfully.")
+    except FileNotFoundError:
+        print(f"Warning: FAQ file not found at {FAQ_PATH}")
+        faq_content = ""
+    except Exception as e:
+        print(f"Error loading FAQ: {e}")
+        faq_content = ""
 
-# Index functions
 def build_index():
-    # Builds the FAISS index and loads it into memory
     global index
     global booksDataFrame
-    print("Building FAISS index...")
-    #Reads data from csv and stores in a pandas Data Frame
-    booksDataFrame = pd.read_csv(DATA_PATH + '/data.csv', on_bad_lines='warn')
-    #Creates a combined list of the 
-    booksDataFrame['combined'] = booksDataFrame["title"].astype(str) + " by " + booksDataFrame["authors"].astype(str)
-    #outputs the dataframe to a pickle file
-    os.makedirs(INDEX_PATH, exist_ok=True)
-    booksDataFrame.to_pickle(INDEX_PATH + "/" + DATAFRAME_NAME)
-    #Encodes using the LLM specified above to create vectors for the combined list in the Data Frame
-    embeddings = model.encode(booksDataFrame['combined'].astype(str).tolist(), convert_to_numpy=True)
-    #Finds out how many dimensions there are in the matrix
-    dim = embeddings.shape[1]
-    #Creates an empty flat index with the number of dimensions in our embeddings
-    new_index = faiss.IndexFlatL2(dim)
-    #adds our embeddings (dim # of dimension vectors) to the index we just created
-    new_index.add(embeddings)
-    
-    #makes the index path if it doesnt exist 
-    
-    #uses the faiss library to write the index with index name to index path
-    faiss.write_index(new_index, INDEX_PATH + '/' + INDEX_NAME)
-    #sets global index to the new index we just created
-    index = new_index
-    print("FAISS index built and loaded.")
 
-#This loads the index from our index loacation if it exists.
+    print("Fetching book data from db-backend...")
+    try:
+        # Fetch JSON from the db-backend service
+        response = requests.get("http://db-backend:6060/books", timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        # Convert JSON list of dicts into a DataFrame
+        booksDataFrame = pd.DataFrame(data)
+        if booksDataFrame.empty:
+            raise ValueError("Received empty book data from db-backend.")
+
+        # Combine title and author text for vector embedding
+        booksDataFrame['combined'] = (
+            booksDataFrame["title"].astype(str) + " by " + booksDataFrame["authors"].astype(str)
+        )
+
+        # Save DataFrame for reuse
+        os.makedirs(INDEX_PATH, exist_ok=True)
+        booksDataFrame.to_pickle(os.path.join(INDEX_PATH, DATAFRAME_NAME))
+
+        # Encode with SentenceTransformer
+        embeddings = model.encode(booksDataFrame['combined'].tolist(), convert_to_numpy=True)
+        dim = embeddings.shape[1]
+
+        # Create and store FAISS index
+        new_index = faiss.IndexFlatL2(dim)
+        new_index.add(embeddings)
+        faiss.write_index(new_index, os.path.join(INDEX_PATH, INDEX_NAME))
+
+        index = new_index
+        print("FAISS index built from db-backend data and loaded successfully.")
+
+    except Exception as e:
+        print(f"❌ Error fetching or building index: {e}", flush=True)
+        sys.exit(1)
+
+#This loads the index from our index location if it exists.
 def load_index():
     global index
     index = faiss.read_index(INDEX_PATH + '/' + INDEX_NAME)
@@ -79,7 +103,7 @@ def faiss_search(query:str, k=5):
     query_vec=model.encode([query],convert_to_numpy=True)
     
     #Searches the index and returns the top 20 + k results
-    D, I = index.search(query_vec, k=20+k)
+    D, I = index.search(query_vec, k=20+int(k))
     results = []
     
     #This sets the minimum results to 2 distinct results 
@@ -88,63 +112,104 @@ def faiss_search(query:str, k=5):
         row = {
             "title": row["title"],
             "authors": row["authors"],
-            "average_rating": row["average_rating"]
+            "genres": row["genres"],
+            "isbn": row["isbn"],
+            "release_date": row["release_date"],
+            "std_price": row["std_price"],
+            "sale_price": row["sale_price"],
+            "stock_count": row["stock_count"]
+            
         }
         print(row, flush=True)
         #only adds distinct results (there are some repeats in the test dataset)
         if row not in results:
             results.append(row)
-        if len(results) >= 2 and len(results) >=k:
+        if len(results) >= 2 and len(results) >= int(k):
             break
     return results
 
 
 #LLM functions
 def call_llm(messages, tools, stream):
-    llm_response = requests.post(LLM_ENDPOINT, headers= { "Content-Type": "application/json" },
-			json= {
-				"model": OLLAMA_MODEL,
+    try:
+        llm_response = requests.post(
+            LLM_ENDPOINT,
+            headers={"Content-Type": "application/json"},
+            json={
+                "model": OLLAMA_MODEL,
                 "messages": messages,
                 "tools": tools,
                 "stream": stream,
-                })
-    data = llm_response.json()
-    print(data, flush=True)
-    assistant_msg = data["message"]
+            },
+        )
+        llm_response.raise_for_status()
+        data = llm_response.json()
+    except Exception as e:
+        print(f"Error contacting LLM: {e}", flush=True)
+        return messages
+
+    print(json.dumps(data, indent=4), flush=True)
+
+    assistant_msg = data.get("message", {})
     messages.append(assistant_msg)
-    
+
+    # --- Handle tool calls ---
     if "tool_calls" in assistant_msg:
-        print("Book_Search called", flush=True)
-        print(assistant_msg, flush=True)
         for call in assistant_msg["tool_calls"]:
-            if call["function"]["name"] == "book_search":
-                if call["function"]["arguments"]["query"]:
-                    args = call["function"]["arguments"]
-                    tool_result = faiss_search(args["query"], args["numberOfBooks"])
-                    # Append tool output to the chat history
-                    tool_output= set({})
-                    for result in tool_result:
-                        tool_output.add(result["title"] +" by " +result["authors"] +" with a rating of " + str(result["average_rating"].item()))
-                    print(tool_output)
+            func_name = call["function"]["name"]
+            args = call["function"].get("arguments", {})
+
+            # --- Book search tool ---
+            if func_name == "book_search":
+                query = args.get("query")
+                num_books = args.get("numberOfBooks", 5)
+
+                if query:
+                    tool_result = faiss_search(query, num_books)
+                    print("Book_Search called:", query, flush=True)
+
+                    # Format output for readability
+                    tool_output = [
+                        f"{r['title']} by {r['authors']} "
+                        f"(Genres: {r['genres']}, ISBN: {r['isbn']}, "
+                        f"Release Date: {r['release_date']}, "
+                        f"Standard Price: ${r['std_price']}, Sale Price: ${r['sale_price']}, Stock: {r['stock_count']})"
+                        for r in tool_result
+                    ]
+                    print("Results:", json.dumps(tool_output, indent=2), flush=True)
+
+                    # Append tool result
                     messages.append({
                         "role": "tool",
-                        "content": str(tool_result),
+                        "content": "\n".join(tool_output),
                         "tool_name": "book_search"
                     })
-                    return call_llm(messages,[tools[1]],stream)
-            if call["function"]["arguments"]["reply"]:
-                messages.append({"role": "assistant", "content" : call["function"]["arguments"]["reply"]})
-                print(json.dumps(messages,indent=4), flush=True)
+
+                    # Recurse with the reply tool
+                    return call_llm(messages, [tools[1]], stream)
+
+            # --- Reply tool ---
+            elif func_name == "reply":
+                reply_text = args.get("reply", "")
+                messages.append({"role": "assistant", "content": reply_text})
+                print("Reply added:", reply_text, flush=True)
                 return messages
+
+    # --- No tool calls; standard assistant reply ---
+    # --- No tool calls; standard assistant reply ---
     else:
-        print(assistant_msg, flush=True)
-        reply = assistant_msg["content"]
-        if "</think>" in reply:
-            end_index = reply.index("</think>")
-            reply = reply[end_index+9:]
-            print(reply, flush=True)
-            #I want to return messages
-        return reply
+        reply = assistant_msg.get("content", "")
+        if "{" in reply:
+            # Remove hidden reasoning if present
+            reply = reply.split("}", 1)[-1].strip()
+        
+        # Remove [TOOL_CALLS] prefix if present
+        if reply.startswith("[TOOL_CALLS]"):
+            reply = reply.replace("[TOOL_CALLS]", "", 1).strip()
+
+        messages.append({"role": "assistant", "content": reply})
+        print("Final reply:", reply, flush=True)
+        return messages
 
 
 #Routes
@@ -167,24 +232,36 @@ def search_api():
 
 @app.route("/chat", methods=["POST"])
 def llm_chat():
+    global faq_content
+    
     req_data = request.json or {}
     user_message = req_data.get("message", "")
     history = req_data.get("history", False)
     if not user_message:
         return jsonify({"error": "No message provided"})
     if not history:
+        system_prompt = f"""/no_think 
+You are a helpful bookstore assistant for Booster Bookstore. 
+
+FREQUENTLY ASKED QUESTIONS:
+{faq_content}
+
+INSTRUCTIONS:
+- Use the FAQ information above to answer common questions about the bookstore, shipping, payments, returns, and customer support.
+- Use the `book_search` tool only when the user explicitly requests books, or when you must fetch book data. 
+- Use the `reply` tool to send your response to the user.
+- Return exactly the number of books the user asks for, no more. 
+- Keep replies concise and direct. 
+- When asked for similar books, exclude any with the same title as the reference. 
+- Do not explain your reasoning or mention tools in responses.
+- If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other).
+- For questions about orders, shipping, returns, payments, or general bookstore information, refer to the FAQ above.
+- You can use Markdown formatting in your replies to make them more readable (bold, italic, lists, links, etc.)."""
+
         messages = [
             {
                 "role": "system",
-                "content": """/no_think 
-                    You are a bookstore assistant. 
-                    - Use the `book_search` tool only when the user explicitly requests books, or when you must fetch book data. 
-                    - Use the `reply` tool to send your response to the user.
-                    - Return exactly the number of books the user asks for, no more. 
-                    - Keep replies concise and direct. 
-                    - When asked for similar books, exclude any with the same title as the reference. 
-                    - Do not explain your reasoning or mention tools in responses.
-                    - If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other)."""
+                "content": system_prompt
             },
             {
                 'role': 'user',
@@ -229,19 +306,21 @@ def llm_chat():
                             "description": "Reply to send to the user."
                         }
                     },
-                    "required": ["query"]
+                    "required": ["reply"]
                 }
             }
         }
     ]
     
     return jsonify(call_llm(messages, tools, False))
-    # updated_messages = call_llm(messages, tools, False)
     
     
     
     
 if __name__ == "__main__":
+    # Load FAQ
+    load_faq()
+    
     # Load existing index if it exists
     if os.path.exists(INDEX_PATH + '/' + INDEX_NAME) and os.path.exists(INDEX_PATH + "/" + DATAFRAME_NAME):
         load_index()
