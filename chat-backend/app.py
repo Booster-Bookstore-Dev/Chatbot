@@ -31,15 +31,24 @@ app = Flask(__name__)
 def load_faq():
     global faq_content
     try:
-        with open(FAQ_PATH, 'r', encoding='utf-8') as f:
-            faq_content = f.read()
-        print("FAQ loaded successfully.")
-    except FileNotFoundError:
-        print(f"Warning: FAQ file not found at {FAQ_PATH}")
-        faq_content = ""
+        # Fetch JSON from the db-backend service
+        response = requests.get("http://db-backend:6060/faq", timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        print(json.dumps(data, indent=4), flush=True)
+        
+        # Build newline-separated content
+        lines = []
+        for item in data:
+            q = item.get("question", "").strip()
+            a = item.get("answer", "").strip()
+            lines.append(f"Q: {q}\nA: {a}")
+        print(f"Loaded {len(lines)} FAQ entries.", flush=True)
+        faq_content = "\n\n".join(lines)  # double newline between entries
     except Exception as e:
-        print(f"Error loading FAQ: {e}")
-        faq_content = ""
+        print(f"❌ Error fetching FAQ data: {e}", flush=True)
+        faq_content = "No FAQ data available."
+
 
 def build_index():
     global index

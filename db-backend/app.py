@@ -29,9 +29,12 @@ except errors.ConnectionFailure as e:
 if client:
     db = client.get_database("mydb")
     collection = db["books"]
+    faq_collection = db["faq"]
 else:
     db = None
     collection = None
+    faq_collection = None
+    
 
 
 @app.route("/")
@@ -57,6 +60,13 @@ def add_book():
     collection.insert_one(data)
     return jsonify({"message": "Book added successfully!"}), 201
 
+@app.route("/faq", methods=["GET"])
+def faq():
+    if faq_collection is None:
+        return jsonify({"error": "Database not connected"}), 500
+    faq = list (faq_collection.find({}, {"_id": 0}))
+    return jsonify(faq)
+    
 
 @app.route("/manage")
 def manage_page():
