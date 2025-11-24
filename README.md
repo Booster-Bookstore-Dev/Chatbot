@@ -13,6 +13,7 @@ This project is a locally hosted AI-powered customer support chatbot designed to
 -   Secure data handling with MongoDB authentication
 -   Modular design (frontend, chat-backend, db-backend, database) for scalability and maintainability
 -   Optional Cloudflare Tunnel deployment for secure remote access
+-   FAQ management via Mongo Express web interface
 
 ## Project Goals
 
@@ -48,15 +49,16 @@ The system consists of five main services orchestrated by Docker Compose:
 │  - FAISS semantic search with SentenceTransformer               │
 │  - Calls Ollama LLM on host via host.docker.internal            │
 │  - Fetches book data from db-backend                            │
-└────────┬─────────────────────────────────────────┬──────────────┘
-         │                                         │
-         │ Fetch Books                             │ LLM Requests
-         │                                         │
-┌────────▼─────────────────────┐     ┌─────────────▼──────────────┐
-│  DB-Backend (Flask)          │     │  Ollama (Host Machine)     │
-│  - /books API                │     │  - mistral:7b model        │
-│  - /upload_books             │     │  - Runs on :11434          │
-│  - /manage page              │     └────────────────────────────┘
+│  - Loads FAQ data from MongoDB on startup                       │
+└────────┬─────────────────────────────────────┬──────────────────┘
+         │                                     │
+         │ Fetch Books & FAQs                  │ LLM Requests
+         │                                     │
+┌────────▼─────────────────────┐     ┌────────▼──────────────────┐
+│  DB-Backend (Flask)          │     │  Ollama (Host Machine)    │
+│  - /books API                │     │  - mistral:7b model       │
+│  - /upload_books             │     │  - Runs on :11434         │
+│  - /manage page              │     └───────────────────────────┘
 │  - /rebuild_index trigger    │
 └────────┬─────────────────────┘
          │
@@ -65,6 +67,7 @@ The system consists of five main services orchestrated by Docker Compose:
 ┌────────▼─────────────────────┐
 │  MongoDB                     │
 │  - books collection          │
+│  - faqs collection           │
 │  - Persistent storage        │
 └──────────────────────────────┘
 
@@ -73,6 +76,7 @@ Optional:
 │  Mongo Express (Web UI)      │
 │  - Database admin at         │
 │         :8081/mongo          │
+│  - Edit FAQs directly        │
 └──────────────────────────────┘
 
 ┌──────────────────────────────┐
@@ -226,6 +230,91 @@ Your application will now be accessible at:
 -   Database admin: https://admin.yourdomain.com/mongo
 -   Book management: https://admin.yourdomain.com/manage
 
+## Managing FAQs via Mongo Express
+
+The chatbot's FAQ responses are stored in MongoDB and can be managed through the Mongo Express web interface.
+
+### Accessing Mongo Express
+
+Navigate to http://localhost:8081/mongo (or your deployed domain).
+
+Login credentials:
+
+-   Username: `admin`
+-   Password: `pass` (or as configured in docker-compose.yaml)
+
+### FAQ Collection Structure
+
+FAQs are stored in the `faqs` collection within your database. Each FAQ document should have the following structure:
+
+```json
+{
+	"question": "What are your store hours?",
+	"answer": "We are open Monday-Friday 9am-8pm, Saturday 10am-6pm, and Sunday 12pm-5pm.",
+	"category": "store_info",
+	"keywords": ["hours", "open", "schedule", "time"]
+}
+```
+
+Fields:
+
+-   **question**: The FAQ question text (used for matching)
+-   **answer**: The response the chatbot will provide
+-   **category**: Optional categorization for organization
+-   **keywords**: Optional array of keywords to improve matching
+
+### Adding New FAQs
+
+1. Navigate to your database in Mongo Express
+2. Select the `faqs` collection
+3. Click "New Document"
+4. Enter the FAQ data in JSON format
+5. Click "Save"
+6. **Important**: Restart the chat-backend container to load the new FAQ:
+
+```bash
+docker restart chat-backend
+```
+
+### Editing Existing FAQs
+
+1. Navigate to the `faqs` collection in Mongo Express
+2. Click on the document you want to edit
+3. Modify the fields as needed
+4. Click "Save"
+5. **Important**: Restart the chat-backend container to apply changes:
+
+```bash
+docker restart chat-backend
+```
+
+### Deleting FAQs
+
+1. Navigate to the `faqs` collection in Mongo Express
+2. Click the trash icon next to the FAQ document
+3. Confirm deletion
+4. **Important**: Restart the chat-backend container:
+
+```bash
+docker restart chat-backend
+```
+
+### Important Note on FAQ Updates
+
+The chat-backend loads FAQ data from MongoDB only during startup. Any changes made to the `faqs` collection via Mongo Express will not take effect until the chat-backend container is restarted. This is a current limitation of the system.
+
+To apply FAQ changes:
+
+```bash
+docker restart chat-backend
+```
+
+Or restart all services:
+
+```bash
+docker compose restart
+```
+
 ## Managing Books via the /manage Interface
 
 The /manage page provides a web interface for bulk book management.
@@ -239,16 +328,28 @@ Navigate to http://localhost:6060/manage (or your deployed domain).
 Your CSV file must include headers matching the expected book fields:
 
 ```
-title,authors,genres,isbn,release_date,std_price,sale_price,stock_count
+title,authors,genres,isbn,release_date,std_price,sale_price,stock_count,rating
 ```
 
 Example data:
 
 ```
-title,authors,genres,isbn,release_date,std_price,sale_price,stock_count
-Dune,Frank Herbert,Science Fiction,9780441172719,1965-08-01,9.99,7.99,15
-The Hobbit,J.R.R. Tolkien,Fantasy,9780547928227,1937-09-21,8.49,6.99,30
+title,authors,genres,isbn,release_date,std_price,sale_price,stock_count,rating
+Dune,Frank Herbert,Science Fiction,9780441172719,1965-08-01,9.99,7.99,15,4.5
+The Hobbit,J.R.R. Tolkien,Fantasy,9780547928227,1937-09-21,8.49,6.99,30,4.8
 ```
+
+Field descriptions:
+
+-   **title**: Book title (required)
+-   **authors**: Author name(s) (required)
+-   **genres**: Genre classification (required)
+-   **isbn**: ISBN number (required)
+-   **release_date**: Publication date in YYYY-MM-DD format (required)
+-   **std_price**: Standard retail price (required)
+-   **sale_price**: Current sale price (required)
+-   **stock_count**: Number of copies in stock (required)
+-   **rating**: Customer rating on a scale of 0-5 (required, supports decimals)
 
 ### Uploading Books
 
@@ -280,11 +381,11 @@ After uploading new book data, click Rebuild Index to update the FAISS search in
 -   Returns LLM response with optional tool calls
 -   Request body:
 
-```
-  {
-    "message": "Find me books about space exploration",
-    "history": [] // optional conversation history
-  }
+```json
+{
+	"message": "Find me books about space exploration",
+	"history": [] // optional conversation history
+}
 ```
 
 **POST /search**
@@ -292,11 +393,11 @@ After uploading new book data, click Rebuild Index to update the FAISS search in
 -   Direct FAISS semantic search (for testing)
 -   Request body:
 
-```
-  {
-    "query": "science fiction",
-    "k": 5
-  }
+```json
+{
+	"query": "science fiction",
+	"k": 5
+}
 ```
 
 **POST /rebuild_index**
@@ -315,17 +416,18 @@ After uploading new book data, click Rebuild Index to update the FAISS search in
 -   Adds a single book to the database
 -   Request body:
 
-```
-  {
-    "title": "Book Title",
-    "authors": "Author Name",
-    "genres": "Genre",
-    "isbn": "1234567890",
-    "release_date": "2024-01-01",
-    "std_price": "19.99",
-    "sale_price": "14.99",
-    "stock_count": "25"
-  }
+```json
+{
+	"title": "Book Title",
+	"authors": "Author Name",
+	"genres": "Genre",
+	"isbn": "1234567890",
+	"release_date": "2024-01-01",
+	"std_price": "19.99",
+	"sale_price": "14.99",
+	"stock_count": "25",
+	"rating": "4.5"
+}
 ```
 
 **GET /manage**
@@ -367,6 +469,15 @@ The chatbot uses Ollama with the Mistral 7B model for natural language understan
 4. Tool results are appended to the conversation and the LLM generates a final response
 5. The complete conversation history is returned for context preservation
 
+### FAQ Integration
+
+FAQ data is loaded from the MongoDB `faqs` collection when the chat-backend starts:
+
+1. FAQs are retrieved from MongoDB during initialization
+2. FAQs are included in the system prompt for the LLM
+3. The LLM uses FAQ knowledge to answer common questions
+4. Changes to FAQs require a chat-backend restart to take effect
+
 ### Data Flow
 
 1. User submits query via frontend
@@ -374,7 +485,7 @@ The chatbot uses Ollama with the Mistral 7B model for natural language understan
 3. Chat-backend processes query through Ollama
 4. If book search is needed, FAISS index is queried
 5. Book data is fetched from MongoDB via db-backend
-6. LLM generates response using search results
+6. LLM generates response using search results and FAQ knowledge
 7. Response is returned to user via frontend
 
 ## Troubleshooting
@@ -407,6 +518,13 @@ The chatbot uses Ollama with the Mistral 7B model for natural language understan
 -   Ensure MongoDB has sufficient storage space
 -   Review db-backend logs: `docker logs db-backend`
 
+### FAQs Not Working
+
+-   Verify FAQs exist in MongoDB: check the `faqs` collection in Mongo Express
+-   Ensure FAQ documents have the correct structure (question, answer fields)
+-   **Restart chat-backend after adding or modifying FAQs**: `docker restart chat-backend`
+-   Check chat-backend logs for FAQ loading errors: `docker logs chat-backend`
+
 ### Cloudflare Tunnel Not Working
 
 -   Verify tunnel credentials file exists in ./cloudflared/
@@ -426,25 +544,25 @@ The chatbot uses Ollama with the Mistral 7B model for natural language understan
 
 View logs for all services:
 
-```
+```bash
 docker compose logs -f
 ```
 
 View logs for a specific service:
 
-```
+```bash
 docker logs -f chat-backend
 ```
 
 ### Stopping Services
 
-```
+```bash
 docker compose down
 ```
 
 To remove volumes and reset database:
 
-```
+```bash
 docker compose down -v
 ```
 
@@ -460,14 +578,14 @@ To switch to a different Ollama model:
 
 To backup MongoDB data:
 
-```
+```bash
 docker exec mongo mongodump --out=/dump --username=root --password=your_password
 docker cp mongo:/dump ./backup
 ```
 
 To restore from backup:
 
-```
+```bash
 docker cp ./backup mongo:/dump
 docker exec mongo mongorestore /dump --username=root --password=your_password
 ```
@@ -481,6 +599,7 @@ For production environments with high traffic:
 -   Implement caching layer (Redis) for frequent queries
 -   Monitor resource usage and adjust container limits
 -   Set up logging aggregation and monitoring
+-   Consider implementing hot-reload for FAQ updates to avoid manual restarts
 
 ## Project Structure
 
