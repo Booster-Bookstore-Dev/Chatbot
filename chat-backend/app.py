@@ -117,16 +117,18 @@ def faiss_search(query:str, k=5):
     
     #This sets the minimum results to 2 distinct results 
     for i, location in enumerate(I[0]):
+        print(f"Result {i+1}: Index {location}, Distance {D[0][i]}", flush=True)
         row=booksDataFrame.iloc[location]
         row = {
             "title": row["title"],
             "authors": row["authors"],
-            "genres": row["genres"],
+            "genre": row["genre"],
             "isbn": row["isbn"],
             "release_date": row["release_date"],
             "std_price": row["std_price"],
             "sale_price": row["sale_price"],
-            "stock_count": row["stock_count"]
+            "stock_count": row["stock_count"],
+            "rating": row["rating"]
             
         }
         print(row, flush=True)
@@ -180,9 +182,9 @@ def call_llm(messages, tools, stream):
                     # Format output for readability
                     tool_output = [
                         f"{r['title']} by {r['authors']} "
-                        f"(Genres: {r['genres']}, ISBN: {r['isbn']}, "
+                        f"(Genre: {r['genre']}, ISBN: {r['isbn']}, "
                         f"Release Date: {r['release_date']}, "
-                        f"Standard Price: ${r['std_price']}, Sale Price: ${r['sale_price']}, Stock: {r['stock_count']})"
+                        f"Standard Price: ${r['std_price']}, Sale Price: ${r['sale_price']}, Rating:{r['rating']} Stock: {r['stock_count']})"
                         for r in tool_result
                     ]
                     print("Results:", json.dumps(tool_output, indent=2), flush=True)
@@ -265,7 +267,8 @@ INSTRUCTIONS:
 - Do not explain your reasoning or mention tools in responses.
 - If user asks for books sorted, rearrange them to sort them by how the user asks (Alphabetical, by rating, or other).
 - For questions about orders, shipping, returns, payments, or general bookstore information, refer to the FAQ above.
-- You can use Markdown formatting in your replies to make them more readable (bold, italic, lists, links, etc.)."""
+- You can use Markdown formatting in your replies to make them more readable (bold, italic, lists, links, etc.).
+- Use star icons for ratings (e.g., ★★★★☆ for 4 out of 5)."""
 
         messages = [
             {
@@ -285,7 +288,7 @@ INSTRUCTIONS:
         "type": "function",
             "function": {
                 "name": "book_search",
-                "description": "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
+                "description": "Searches the bookstore database for book titles and authors using semantic search on 'query'. Returns a list of books in no particular order. Also returns metadata bout the books, such as price, rating, and stock count. Choose only the most applicable ones. Request more than one for similarity searches so it doesn't return a the original book. ",
                 "parameters": {
                     "type": "object",
                     "properties": {
